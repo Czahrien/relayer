@@ -11,7 +11,7 @@
   <div class="record" aria-hidden="true">
     <div class="label"></div>
   </div>
-  <h1>Listening Room</h1>
+  <h1>Relayer</h1>
   <p class="lede">
     Start a session and share the link. Everyone who opens it hears the same thing at the same moment. Drop in
     audio files, whole album folders, or YouTube links.

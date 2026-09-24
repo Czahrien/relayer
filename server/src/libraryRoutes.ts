@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import type { LibraryStatus } from "@listening-room/shared";
+import type { LibraryStatus } from "@relayer/shared";
 import type { Library } from "./library/library.js";
 import { sendImage } from "./media.js";
 import type { RoomRegistry } from "./rooms.js";

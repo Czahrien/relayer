@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import { parseFile, type IAudioMetadata } from "music-metadata";
-import { isAudioName } from "@listening-room/shared";
+import { isAudioName } from "@relayer/shared";
 import { isDiscFolder } from "./tags.js";
 
 /** A candidate audio file in a library source. */

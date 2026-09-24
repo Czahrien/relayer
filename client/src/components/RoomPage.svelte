@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { effectivePositionAt } from "@listening-room/shared";
+  import { effectivePositionAt } from "@relayer/shared";
   import { registerMediaSessionHandlers, updateMediaSession } from "../lib/mediaSession.js";
   import { collectFromDataTransfer, collectFromFileList, extractLinks } from "../lib/ingest/drop.js";
   import { RoomClient } from "../lib/room.svelte.js";
@@ -40,7 +40,7 @@
 
   onDestroy(() => {
     client?.destroy();
-    document.title = "Listening Room";
+    document.title = "Relayer";
   });
 
   const current = $derived.by(() => {
@@ -55,8 +55,8 @@
       item && pb?.state === "playing"
         ? `▶ ${item.title}${item.artist ? ` – ${item.artist}` : ""}`
         : item
-          ? `${item.title} · Listening Room`
-          : "Listening Room";
+          ? `${item.title} · Relayer`
+          : "Relayer";
   });
 
   $effect(() => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatTime } from "@listening-room/shared";
+  import { formatTime } from "@relayer/shared";
 
   let {
     positionMs,

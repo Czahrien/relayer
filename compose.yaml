@@ -1,10 +1,10 @@
 services:
-  listening-room:
+  relayer:
     # Built locally from this repo for now. Once images are published to GHCR,
     # replace `build:` and this `image:` with the published one:
-    #   image: ghcr.io/czahrien/listening-room:latest
+    #   image: ghcr.io/czahrien/relayer:latest
     build: .
-    image: listening-room:local
+    image: relayer:local
     init: true
     restart: unless-stopped
     ports:

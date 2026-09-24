@@ -1,4 +1,4 @@
-# Listening Room
+# Relayer
 
 Listen to music together, in sync, from anywhere. Start a room, share the link,
 and everyone who opens it hears the same thing at the same moment. Build the
@@ -7,8 +7,10 @@ own music library.
 
 ![A room: now playing on the left, the shared queue on the right, and three listeners in sync](docs/room.png)
 
-Listening Room is small, self-hosted, and runs as a single process or Docker
-container. There are no accounts: the room link is all anyone needs.
+Relayer is small, self-hosted, and runs as a single process or Docker
+container. There are no accounts: the room link is all anyone needs. (The name
+is a nod to the 1974 Yes album: the server relays one timeline to every
+listener.)
 
 ## Features
 
@@ -34,8 +36,8 @@ container. There are no accounts: the room link is all anyone needs.
 With Docker:
 
 ```sh
-git clone https://github.com/czahrien/listening-room.git
-cd listening-room
+git clone https://github.com/czahrien/relayer.git
+cd relayer
 docker compose up -d --build
 ```
 
@@ -48,7 +50,7 @@ To add your music library, create a `compose.override.yaml` next to
 
 ```yaml
 services:
-  listening-room:
+  relayer:
     environment:
       LIBRARY_DIR: /music
     volumes:
@@ -141,7 +143,7 @@ run while the server is up.
 
 ```sh
 npm run library-report -- /path/to/music --out library-notes.md
-docker compose exec -T listening-room node server/dist/tools/libraryReport.js > library-notes.md
+docker compose exec -T relayer node server/dist/tools/libraryReport.js > library-notes.md
 ```
 
 The library folder defaults to `LIBRARY_DIR`, and without `--out` the report
@@ -150,7 +152,7 @@ goes to standard output. A relative `--out` path is relative to where you run
 
 ## Deploying
 
-Put Listening Room behind a reverse proxy with HTTPS: the clipboard and some
+Put Relayer behind a reverse proxy with HTTPS: the clipboard and some
 mobile browser features need it.
 
 **Caddy** works as-is: its `reverse_proxy` forwards WebSockets. **nginx** needs
@@ -186,12 +188,12 @@ music.example.com {
 	handle @protected {
 		route {
 			authorize with mypolicy
-			reverse_proxy listening-room:3000
+			reverse_proxy relayer:3000
 		}
 	}
 
 	handle {
-		reverse_proxy listening-room:3000
+		reverse_proxy relayer:3000
 	}
 }
 ```
@@ -235,7 +237,7 @@ behind the decisions, including what it took to keep Safari in sync.
 
 ## License
 
-Listening Room is released under the [MIT License](LICENSE).
+Relayer is released under the [MIT License](LICENSE).
 
 The web client bundles third-party packages and fonts (including Fraunces and
 Public Sans under the SIL Open Font License 1.1). The build writes their

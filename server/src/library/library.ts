@@ -9,7 +9,7 @@ import {
   type LibraryArtistInfo,
   type LibrarySearchResult,
   type LibraryTrackInfo,
-} from "@listening-room/shared";
+} from "@relayer/shared";
 import { classifyFormat, imageMime } from "../media.js";
 import { indexFields, normalize, parseQuery, rank, type IndexedField } from "./search.js";
 import type { LibraryFile, LibrarySource } from "./source.js";

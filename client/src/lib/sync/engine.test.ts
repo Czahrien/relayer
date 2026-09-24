@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { positionAt, type ClientMessage, type QueueItem, type RoomSnapshot } from "@listening-room/shared";
+import { positionAt, type ClientMessage, type QueueItem, type RoomSnapshot } from "@relayer/shared";
 import type { FilePlayer } from "../players/FilePlayer.js";
 import { SyncEngine, type CorrectionMode } from "./engine.js";
 

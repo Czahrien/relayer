@@ -1,4 +1,4 @@
-import type { ItemKind, QueueItem } from "@listening-room/shared";
+import type { ItemKind, QueueItem } from "@relayer/shared";
 
 /**
  * A failure local to this client (e.g. the network dropped). The engine retries

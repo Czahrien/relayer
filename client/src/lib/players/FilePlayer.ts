@@ -1,4 +1,4 @@
-import type { QueueItem } from "@listening-room/shared";
+import type { QueueItem } from "@relayer/shared";
 import { RecoverableError, type Player } from "./Player.js";
 
 /** 0.1 s of silent 8 kHz mono WAV, used to unlock audio elements in the Join gesture. */

@@ -30,7 +30,7 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 # The whole install tree: npm nests some packages under a workspace (e.g.
-# server/node_modules/nanoid), and node_modules/@listening-room/shared is a
+# server/node_modules/nanoid), and node_modules/@relayer/shared is a
 # symlink to ../../shared.
 COPY --from=deps /app ./
 COPY --from=build /app/shared/dist shared/dist

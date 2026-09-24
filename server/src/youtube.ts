@@ -3,7 +3,7 @@ import {
   parseYouTubeUrl,
   youtubeThumbnailUrl,
   youtubeWatchUrl,
-} from "@listening-room/shared";
+} from "@relayer/shared";
 import { CommandError, type YoutubeItemInfo } from "./room.js";
 import { cleanText } from "./validate.js";
 

@@ -1,4 +1,4 @@
-import type { ClientMessage, ServerMessage } from "@listening-room/shared";
+import type { ClientMessage, ServerMessage } from "@relayer/shared";
 
 const MIN_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 10_000;

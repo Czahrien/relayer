@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { MAX_NAME_LENGTH } from "@listening-room/shared";
+  import { MAX_NAME_LENGTH } from "@relayer/shared";
   import { prefs } from "../lib/storage.js";
 
   let { roomId, onjoin }: { roomId: string; onjoin: (name: string) => void } = $props();

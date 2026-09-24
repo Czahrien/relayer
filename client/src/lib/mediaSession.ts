@@ -1,4 +1,4 @@
-import { effectivePositionAt, type Playback, type QueueItem } from "@listening-room/shared";
+import { effectivePositionAt, type Playback, type QueueItem } from "@relayer/shared";
 import type { RoomClient } from "./room.svelte.js";
 
 /**

@@ -4,7 +4,7 @@ import {
   type ListenerSyncState,
   type QueueItem,
   type RoomSnapshot,
-} from "@listening-room/shared";
+} from "@relayer/shared";
 import type { FilePlayer } from "../players/FilePlayer.js";
 import { RecoverableError, type Player } from "../players/Player.js";
 

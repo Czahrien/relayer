@@ -1,4 +1,4 @@
-import { EMBED_BLOCKED_MESSAGE, type QueueItem } from "@listening-room/shared";
+import { EMBED_BLOCKED_MESSAGE, type QueueItem } from "@relayer/shared";
 import { RecoverableError, type Player } from "./Player.js";
 
 // The slice of the IFrame Player API we use.

@@ -15,7 +15,7 @@ import {
   type Playback,
   type QueueItem,
   type RoomSnapshot,
-} from "@listening-room/shared";
+} from "@relayer/shared";
 
 /** A command the room refuses. The socket layer turns it into an `error` reply. */
 export class CommandError extends Error {}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatTime, type AddPosition, type LibraryAlbumInfo, type LibrarySearchResult, type LibraryTrackInfo } from "@listening-room/shared";
+  import { formatTime, type AddPosition, type LibraryAlbumInfo, type LibrarySearchResult, type LibraryTrackInfo } from "@relayer/shared";
   import type { AlbumDetail, ArtistDetail } from "../lib/library.js";
   import type { RoomClient } from "../lib/room.svelte.js";
   import { toast } from "../lib/toasts.svelte.js";

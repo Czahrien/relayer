@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ServerMessage } from "@listening-room/shared";
+import type { ServerMessage } from "@relayer/shared";
 import { buildApp, type App } from "./app.js";
 
 interface TestClient {

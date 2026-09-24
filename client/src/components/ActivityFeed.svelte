@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ActivityEntry } from "@listening-room/shared";
+  import type { ActivityEntry } from "@relayer/shared";
 
   let { entries, serverNow }: { entries: ActivityEntry[]; serverNow: () => number } = $props();
   let open = $state(true);

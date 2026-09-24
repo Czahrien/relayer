@@ -7,7 +7,7 @@ import {
   type ListenerHealth,
   type RoomSnapshot,
   type ServerMessage,
-} from "@listening-room/shared";
+} from "@relayer/shared";
 import { prepareFiles, type IngestRequest, type PreparedFile } from "./ingest/drop.js";
 import { UploadQueue } from "./ingest/upload.js";
 import { LibraryApi } from "./library.js";

@@ -15,7 +15,7 @@ import { indexFields, normalize, parseQuery, rank, type IndexedField } from "./s
 import type { LibraryFile, LibrarySource } from "./source.js";
 
 /** An indexed track. `path`, `size`, and `version` stay on the server. */
-export interface LibraryTrack extends LibraryTrackInfo {
+export interface LibraryTrack extends Omit<LibraryTrackInfo, "hasArt"> {
   path: string;
   size: number;
   version: string;
@@ -109,12 +109,6 @@ function albumDir(trackPath: string): string {
   const parts = trackPath.split("/").slice(0, -1);
   if (parts.length > 1 && MULTI_DISC_DIR.test(parts.at(-1)!)) parts.pop();
   return parts.join("/");
-}
-
-/** The client-facing view of a track: no path. */
-function trackInfo(t: LibraryTrack): LibraryTrackInfo {
-  const { id, title, artist, album, albumId, discNo, trackNo, year, durationMs } = t;
-  return { id, title, artist, album, albumId, discNo, trackNo, year, durationMs };
 }
 
 function albumInfo(a: Album): LibraryAlbumInfo {
@@ -230,13 +224,13 @@ export class Library {
           collator.compare(a.artist ?? "", b.artist ?? "") ||
           collator.compare(a.album ?? "", b.album ?? "") ||
           compareTracks(a, b),
-      ).map(trackInfo),
+      ).map(this.trackInfo),
     };
   }
 
   album(id: string): { album: LibraryAlbumInfo; tracks: LibraryTrackInfo[] } | undefined {
     const album = this.getViews().albums.get(id);
-    return album && { album: albumInfo(album), tracks: album.tracks.map(trackInfo) };
+    return album && { album: albumInfo(album), tracks: album.tracks.map(this.trackInfo) };
   }
 
   /** Track IDs of an album, in play order. */
@@ -261,7 +255,7 @@ export class Library {
         .filter((a) => albumIds.has(a.id))
         .sort((a, b) => (a.year ?? 0) - (b.year ?? 0) || collator.compare(a.title, b.title))
         .map(albumInfo),
-      tracks: tracks.map(trackInfo),
+      tracks: tracks.map(this.trackInfo),
     };
   }
 
@@ -270,6 +264,13 @@ export class Library {
     const art = this.art.get(id);
     return art?.file && art.mime ? { file: path.join(this.artDir, art.file), mime: art.mime } : undefined;
   }
+
+  /** The client-facing view of a track: no path. */
+  private trackInfo = (t: LibraryTrack): LibraryTrackInfo => {
+    const { id, title, artist, album, albumId, discNo, trackNo, year, durationMs } = t;
+    const hasArt = !!(albumId && this.art.get(albumId)?.file);
+    return { id, title, artist, album, albumId, discNo, trackNo, year, durationMs, hasArt };
+  };
 
   // ---- Scanning ----
 

@@ -7,6 +7,12 @@
 
   let { client }: { client: RoomClient } = $props();
 
+  const SOURCE = {
+    file: { icon: "file", label: "File" },
+    library: { icon: "library", label: "Library" },
+    youtube: { icon: "youtube", label: "YouTube" },
+  } as const;
+
   let now = $state(0);
   $effect(() => {
     now = client.serverNow();
@@ -49,8 +55,8 @@
   {#if item && pb}
     <div class="details">
       <p class="source">
-        <Icon name={item.kind === "youtube" ? "youtube" : "file"} size={16} />
-        {item.kind === "youtube" ? "YouTube" : "File"} · Added by {item.addedBy}
+        <Icon name={SOURCE[item.kind].icon} size={16} />
+        {SOURCE[item.kind].label} · Added by {item.addedBy}
       </p>
       <h2 class="title">{item.title}</h2>
       {#if item.artist || item.album}

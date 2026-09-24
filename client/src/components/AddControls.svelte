@@ -1,25 +1,16 @@
 <script lang="ts">
-  import { collectFromFileList, extractLinks } from "../lib/ingest/drop.js";
+  import { collectFromFileList } from "../lib/ingest/drop.js";
   import type { RoomClient } from "../lib/room.svelte.js";
   import Icon from "./Icon.svelte";
+  import SearchBox from "./SearchBox.svelte";
 
   let { client }: { client: RoomClient } = $props();
-  let link = $state("");
   let fileInput: HTMLInputElement | undefined = $state();
   let folderInput: HTMLInputElement | undefined = $state();
 
   // iOS has no folder picker; `webkitdirectory` is ignored there.
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const folderSupported = !isIOS && "webkitdirectory" in document.createElement("input");
-
-  function submitLink(event: SubmitEvent) {
-    event.preventDefault();
-    const text = link.trim();
-    if (!text) return;
-    const links = extractLinks("", text);
-    void client.ingest({ files: [], links: links.length > 0 ? links : [text], skipped: 0 });
-    link = "";
-  }
 
   function picked(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
@@ -29,21 +20,7 @@
 </script>
 
 <div class="add">
-  <form class="link" onsubmit={submitLink}>
-    <label class="visually-hidden" for="add-link">YouTube link</label>
-    <input
-      id="add-link"
-      class="field"
-      type="text"
-      inputmode="url"
-      autocapitalize="off"
-      spellcheck="false"
-      placeholder="Paste a YouTube link"
-      autocomplete="off"
-      bind:value={link}
-    />
-    <button class="btn" type="submit" disabled={!link.trim()}>Add link</button>
-  </form>
+  <SearchBox {client} />
   <div class="pickers">
     <button class="btn small" type="button" onclick={() => fileInput?.click()}>
       <Icon name="file" size={18} /> Add files
@@ -73,16 +50,6 @@
   .add {
     display: grid;
     gap: 10px;
-  }
-
-  .link {
-    display: flex;
-    gap: 8px;
-  }
-
-  .link .field {
-    flex: 1;
-    min-width: 0;
   }
 
   .pickers {

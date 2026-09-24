@@ -89,6 +89,8 @@ export interface LibraryTrackInfo {
   trackNo?: number;
   year?: number;
   durationMs?: number;
+  /** Whether the album has art, at /api/rooms/:roomId/library/albums/:albumId/art. */
+  hasArt: boolean;
 }
 
 export interface LibraryAlbumInfo {

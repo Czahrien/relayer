@@ -3,12 +3,14 @@ import {
   type ActivityEntry,
   type AddPosition,
   type ClientMessage,
+  type LibraryStatus,
   type ListenerHealth,
   type RoomSnapshot,
   type ServerMessage,
 } from "@listening-room/shared";
 import { prepareFiles, type IngestRequest, type PreparedFile } from "./ingest/drop.js";
 import { UploadQueue } from "./ingest/upload.js";
+import { LibraryApi } from "./library.js";
 import { ReconnectingSocket, roomSocketUrl } from "./net/socket.js";
 import { FilePlayer } from "./players/FilePlayer.js";
 import { YouTubePlayer } from "./players/YouTubePlayer.js";
@@ -21,6 +23,8 @@ const ACTIVITY_LIMIT = 50;
 /** Matches the server's close code for an unknown room. */
 const ROOM_NOT_FOUND_CLOSE = 4404;
 const ACCEPT_TIMEOUT_MS = 20_000;
+/** How often to refresh the library status while it's indexing. */
+const LIBRARY_POLL_MS = 5000;
 
 /**
  * WebKit (Safari, and every browser on iOS) glitches when playbackRate changes
@@ -51,6 +55,8 @@ export class RoomClient {
   /** itemId → upload fraction, for this client's own uploads. */
   uploadProgress = $state.raw<Record<string, number>>({});
   volume = $state(prefs.volume);
+  /** The server library, or null until the first status arrives (SPEC §10). */
+  libraryStatus = $state.raw<LibraryStatus | null>(null);
   /** The YouTube embed seems to need a tap before it will play (iOS). */
   youtubeNeedsTap = $state(false);
   muted = $state(prefs.muted);
@@ -59,6 +65,7 @@ export class RoomClient {
   readonly engine: SyncEngine;
   readonly filePlayer = new FilePlayer();
   readonly youtubePlayer = new YouTubePlayer();
+  readonly library: LibraryApi;
 
   private readonly socket: ReconnectingSocket;
   private readonly uploads: UploadQueue;
@@ -68,12 +75,14 @@ export class RoomClient {
   private readonly pendingAccepts = new Map<string, (ids: Record<string, string>) => void>();
   /** itemId → snapshot rev when its upload was queued; see pruneUploads. */
   private readonly uploadRevs = new Map<string, number>();
+  private libraryPoll: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     readonly roomId: string,
     readonly clientId: string,
     readonly name: string,
   ) {
+    this.library = new LibraryApi(roomId);
     this.socket = new ReconnectingSocket(roomSocketUrl(roomId));
     this.socket.onOpen = () => this.handleOpen();
     this.socket.onClose = (code) => this.handleClose(code);
@@ -119,6 +128,7 @@ export class RoomClient {
     this.clock.stop();
     this.socket.stop();
     this.uploads.abortAll();
+    if (this.libraryPoll) clearTimeout(this.libraryPoll);
     this.filePlayer.destroy();
     this.youtubePlayer.destroy();
   }
@@ -146,6 +156,28 @@ export class RoomClient {
     this.muted = !this.muted;
     prefs.muted = this.muted;
     this.applyVolume();
+  }
+
+  // ---- Server library ----
+
+  /** Queues library tracks; `label` names them in the confirmation. */
+  addLibrary(trackIds: string[], position: AddPosition, label: string): void {
+    if (trackIds.length === 0) return;
+    if (!this.send({ type: "addLibrary", trackIds, position })) return;
+    toast(position === "next" ? `${label} will play next.` : `Added ${label}.`, "info", 2500);
+  }
+
+  private async refreshLibraryStatus(): Promise<void> {
+    if (this.libraryPoll) clearTimeout(this.libraryPoll);
+    this.libraryPoll = null;
+    try {
+      this.libraryStatus = await this.library.status();
+    } catch {
+      return; // e.g. the room isn't created yet; the next connect retries
+    }
+    if (this.libraryStatus.indexing) {
+      this.libraryPoll = setTimeout(() => void this.refreshLibraryStatus(), LIBRARY_POLL_MS);
+    }
   }
 
   // ---- Ingest ----
@@ -270,6 +302,8 @@ export class RoomClient {
       case "snapshot":
         // The first snapshot after (re)joining always wins: a restarted server starts rev over.
         if (!this.joinPending && this.snapshot && message.snapshot.rev < this.snapshot.rev) return;
+        // Joined, so the room exists: the library endpoints will answer.
+        if (this.joinPending) void this.refreshLibraryStatus();
         this.joinPending = false;
         this.snapshot = message.snapshot;
         this.pruneUploads(message.snapshot);

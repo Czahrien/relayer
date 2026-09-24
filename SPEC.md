@@ -4,7 +4,7 @@
 
 This document records the decisions already made and the reasons behind them, so implementation stays consistent. Anything marked **Stretch** is out of scope for now. If something here turns out to be wrong or impractical during implementation, flag it rather than silently working around it.
 
-**Status.** The first vertical slice (§12, milestones 1–5) is built, along with the changes decided while deploying it: room creation under `/start` so it can sit behind authentication (§5), readable room names (§5), Docker packaging (§13), license notices (§13), and the Safari sync fixes (§6.8). The next milestone is the server library (§10), followed by YouTube search (§14).
+**Status.** The first vertical slice (§12, milestones 1–5) is built, along with the changes decided while deploying it: room creation under `/start` so it can sit behind authentication (§5), readable room names (§5), Docker packaging (§13), license notices (§13), and the Safari sync fixes (§6.8). The server library (§10, milestones 6–8) is built. The next milestone is YouTube search (§14).
 
 ---
 
@@ -654,12 +654,13 @@ interface LibrarySource {
 
 ### 10.5 UI
 
-- **One search box** replaces "Paste a YouTube link". Pasting a YouTube URL still adds it directly; anything else is a search.
+- **One search box** replaces "Paste a YouTube link". Text that looks like a link (a YouTube URL, or anything starting with `http(s)://` or `www.`) is added on Enter or with an **Add video** button; anything else is a search. Escape clears it. Without a library, the box is the plain link field it was before.
 - **Tabs:** **Library**, shown when the library is enabled, and later **YouTube** (§14), each shown only when configured. Library searches as you type (debounced ~150 ms); YouTube searches on Enter to protect its quota.
-- **Library results** are grouped into Artists, Albums, and Songs:
-  - songs and albums each have **Add** and **Play next**;
-  - albums expand to show their tracks, with **Add album**;
-  - artists open their albums.
+- **Library results** are grouped into Artists, Albums, and Songs, in a panel that scrolls on its own (up to 60% of the viewport) so the queue stays reachable:
+  - songs and albums each have **Add** and **Play next**, confirmed with a short toast;
+  - albums expand to show their tracks (each addable), and adding an album adds its tracks in order;
+  - artists open a view of their albums and songs, with a back button;
+  - long lists show the first 6 albums and 8 songs, with **Show all**.
 - **While indexing,** show "Indexing library… (N tracks so far)".
 - **Library items** show "Library" as their source in now playing and the queue.
 
@@ -737,7 +738,7 @@ Build in these milestones. Commit after each one with tests passing.
 5. **Polish.** *(Done.)* The activity feed, Media Session, keyboard shortcuts, the reconnect banner, idle room cleanup, codec rejection messages, and the responsive layout.
 6. **Library: index.** *(Done.)* The `LibrarySource` interface and local-directory source, the scanner with the incremental cache and album art, and in-memory search, all unit-tested.
 7. **Library: rooms.** *(Done.)* The room-scoped endpoints, `addLibrary`, referenced media records and serving, and missing-file handling.
-8. **Library: search UI.** The unified search box, the Library tab, grouped results, album expansion, and the indexing state.
+8. **Library: search UI.** *(Done.)* The unified search box, the Library tab, grouped results, album expansion, and the indexing state.
 9. **YouTube search** (§14), once a YouTube Data API key is available.
 
 Don't add features beyond this spec without asking first.

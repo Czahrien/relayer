@@ -5,8 +5,7 @@ link, and everyone who opens it hears the same thing at the same moment. Add
 audio files, whole album folders, or YouTube links to a shared queue.
 
 Audio is never streamed through the server: each browser plays the source
-itself, and a sync engine steers it to a shared timeline. See [SPEC.md](SPEC.md)
-for the design.
+itself, and a sync engine steers it to a shared timeline. 
 
 ## Requirements
 
@@ -61,6 +60,8 @@ proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection "upgrade";
 client_max_body_size 300m;
 ```
+
+For caddy the default reverse_proxy behavior should work.
 
 ### Restricting who can start rooms
 

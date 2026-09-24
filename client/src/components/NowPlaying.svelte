@@ -146,7 +146,8 @@
   .art-frame {
     position: relative;
     width: 100%;
-    max-width: 560px;
+    /* Large, but leave room for the controls on short screens. */
+    max-width: min(560px, max(260px, 100dvh - 380px));
     aspect-ratio: 1;
     border-radius: var(--radius-l);
     overflow: hidden;

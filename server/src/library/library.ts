@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { selectCover, type IAudioMetadata } from "music-metadata";
 import {
+  joinedArtist,
   titleFromFilename,
   type LibraryAlbumInfo,
   type LibraryArtistInfo,
@@ -131,7 +132,8 @@ function artistInfo(a: Artist): LibraryArtistInfo {
  * files from a source, with album art and in-memory search.
  */
 export class Library {
-  private readonly source: LibrarySource;
+  /** Where tracks are read from; rooms serve referenced tracks through it. */
+  readonly source: LibrarySource;
   private readonly cacheFile: string;
   private readonly artDir: string;
   private readonly concurrency: number;
@@ -343,7 +345,7 @@ export class Library {
       version: file.version,
       mime: verdict.mime,
       title: clean(common.title) ?? titleFromFilename(file.path.slice(file.path.lastIndexOf("/") + 1)),
-      artist: clean(common.artist),
+      artist: clean(joinedArtist(common)),
       albumArtist: clean(common.albumartist),
       album: clean(common.album),
       discNo: common.disk.no ?? undefined,

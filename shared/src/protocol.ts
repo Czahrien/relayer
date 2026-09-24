@@ -128,6 +128,7 @@ export type ClientMessage =
   | { type: "ping"; t0: number }
   | { type: "addYoutube"; url: string; position: AddPosition }
   | { type: "addFiles"; files: FileDescriptor[]; position: AddPosition }
+  | { type: "addLibrary"; trackIds: string[]; position: AddPosition }
   | { type: "play" }
   | { type: "pause" }
   | { type: "seek"; positionMs: number }
@@ -158,4 +159,6 @@ export type ServerMessage =
   | { type: "error"; message: string };
 
 export const MAX_NAME_LENGTH = 40;
+/** Most library tracks one addLibrary may add (a large box set). */
+export const MAX_LIBRARY_BATCH = 500;
 export const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;

@@ -1,4 +1,5 @@
 import {
+  MAX_LIBRARY_BATCH,
   MAX_NAME_LENGTH,
   type AddPosition,
   type ClientMessage,
@@ -98,6 +99,18 @@ export function parseClientMessage(raw: string): ClientMessage {
         throw new CommandError("Invalid files.");
       }
       return { type: "addFiles", files: files.map(fileDescriptor), position: position(o) };
+    }
+    case "addLibrary": {
+      const ids = o.trackIds;
+      if (
+        !Array.isArray(ids) ||
+        ids.length === 0 ||
+        ids.length > MAX_LIBRARY_BATCH ||
+        !ids.every((id) => typeof id === "string" && /^[a-f0-9]{1,64}$/.test(id))
+      ) {
+        throw new CommandError("Invalid trackIds.");
+      }
+      return { type: "addLibrary", trackIds: ids as string[], position: position(o) };
     }
     case "play":
     case "pause":

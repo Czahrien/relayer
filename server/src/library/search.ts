@@ -3,9 +3,13 @@ export function normalize(text: string): string {
   return text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 }
 
-/** Normalized words, split on anything that isn't a letter or number. */
+/**
+ * Normalized words, split on anything that isn't a letter or number.
+ * Apostrophes join rather than split, so "Don't" is "dont" and "B'Day" is "bday".
+ */
 export function words(text: string): string[] {
   return normalize(text)
+    .replace(/['’`]/g, "")
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
 }
@@ -26,7 +30,16 @@ export interface IndexedField {
 export function indexFields(fields: SearchField[]): IndexedField[] {
   return fields
     .filter((f) => f.text)
-    .map((f) => ({ full: normalize(f.text).trim(), words: words(f.text), weight: f.weight }));
+    .map((f) => {
+      const parts = words(f.text);
+      // Also the whole field run together, so "acdc" finds "AC/DC".
+      const compact = parts.join("");
+      return {
+        full: normalize(f.text).trim(),
+        words: parts.length > 1 ? [...parts, compact] : parts,
+        weight: f.weight,
+      };
+    });
 }
 
 export interface Query {

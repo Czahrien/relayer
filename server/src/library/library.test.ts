@@ -143,6 +143,14 @@ describe("Library scanning", () => {
     expect(library.albumArt(double.id)).toBeUndefined();
   });
 
+  it("keeps artist names containing a slash intact", async () => {
+    await put("ACDC/Back in Black/01.wav", wav({ title: "Hells Bells", artist: "AC/DC", album: "Back in Black" }));
+    const { library } = newLibrary();
+    await library.scan();
+    expect(library.search("hells bells").tracks[0]).toMatchObject({ artist: "AC/DC" });
+    expect(library.artist("ac/dc")?.tracks.map((t) => t.title)).toEqual(["Hells Bells"]);
+  });
+
   it("lists an artist's albums and tracks", async () => {
     const { library } = newLibrary();
     await library.scan();

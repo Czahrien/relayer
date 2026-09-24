@@ -7,6 +7,9 @@ export interface Config {
   roomIdleTtlMs: number;
   /** Whether opening a link to an unknown room creates it (§5). Turn off when room creation is behind auth. */
   createRoomOnJoin: boolean;
+  /** Root of the server music library (SPEC §10); undefined disables it. */
+  libraryDir?: string;
+  libraryRescanMs: number;
 }
 
 function positiveNumber(name: string, fallback: number): number {
@@ -32,5 +35,7 @@ export function loadConfig(): Config {
     maxUploadBytes: positiveNumber("MAX_UPLOAD_MB", 300) * 1024 * 1024,
     roomIdleTtlMs: positiveNumber("ROOM_IDLE_TTL_MIN", 60) * 60 * 1000,
     createRoomOnJoin: boolean("CREATE_ROOM_ON_JOIN", true),
+    libraryDir: process.env.LIBRARY_DIR ? path.resolve(process.env.LIBRARY_DIR) : undefined,
+    libraryRescanMs: positiveNumber("LIBRARY_RESCAN_MIN", 360) * 60 * 1000,
   };
 }

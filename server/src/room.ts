@@ -56,6 +56,17 @@ export interface YoutubeItemInfo {
   error?: string;
 }
 
+/** A library track to add, resolved from the index by the socket layer. */
+export interface LibraryItemInfo {
+  title: string;
+  artist?: string;
+  album?: string;
+  discNo?: number;
+  trackNo?: number;
+  durationMs?: number;
+  hasArt: boolean;
+}
+
 /** Metadata the server learned from an uploaded file. Defined fields win. */
 export type UploadedMetadata = Partial<
   Pick<QueueItem, "title" | "artist" | "album" | "discNo" | "trackNo" | "durationMs" | "artUrl">
@@ -191,18 +202,36 @@ export class Room {
       };
     });
     this.insert(created, position);
-
-    const first = created[0];
-    if (created.length === 1 && first) {
-      this.log(actor.name, `added “${first.title}”`);
-    } else {
-      const albums = new Set(created.map((item) => item.album));
-      const [album] = albums;
-      const from = albums.size === 1 && album ? ` from “${album}”` : "";
-      this.log(actor.name, `added ${created.length} tracks${from}`);
-    }
+    this.logAdded(actor, created);
     this.commit();
     return ids;
+  }
+
+  /** Adds server-library tracks as ready items (SPEC §10.4). Returns them in order. */
+  addLibrary(actor: Actor, tracks: LibraryItemInfo[], position: AddPosition): QueueItem[] {
+    const now = this.clock.now();
+    const created = tracks.map((track): QueueItem => {
+      const id = nanoid(12);
+      return {
+        id,
+        kind: "library",
+        status: "ready",
+        mediaUrl: `/media/${this.id}/${id}`,
+        artUrl: track.hasArt ? `/media/${this.id}/${id}/art` : undefined,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        discNo: track.discNo,
+        trackNo: track.trackNo,
+        durationMs: track.durationMs,
+        addedBy: actor.name,
+        addedAt: now,
+      };
+    });
+    this.insert(created, position);
+    this.logAdded(actor, created);
+    this.commit();
+    return created;
   }
 
   addYoutube(actor: Actor, info: YoutubeItemInfo, position: AddPosition): QueueItem {
@@ -503,6 +532,19 @@ export class Room {
       changed = true;
     }
     if (changed) this.commit();
+  }
+
+  /** "added “Song”" or "added 12 tracks from “Album”". */
+  private logAdded(actor: Actor, created: QueueItem[]): void {
+    const first = created[0];
+    if (created.length === 1 && first) {
+      this.log(actor.name, `added “${first.title}”`);
+      return;
+    }
+    const albums = new Set(created.map((item) => item.album));
+    const [album] = albums;
+    const from = albums.size === 1 && album ? ` from “${album}”` : "";
+    this.log(actor.name, `added ${created.length} tracks${from}`);
   }
 
   private log(by: string, text: string): void {

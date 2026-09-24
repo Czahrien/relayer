@@ -34,7 +34,7 @@ describe("media routes", () => {
   beforeEach(async () => {
     dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "lr-media-"));
     ctx = await buildApp(
-      { port: 0, dataDir, maxUploadBytes: 64 * 1024, roomIdleTtlMs: 60_000, createRoomOnJoin: true },
+      { port: 0, dataDir, maxUploadBytes: 64 * 1024, roomIdleTtlMs: 60_000, createRoomOnJoin: true, libraryRescanMs: 3_600_000 },
       { youtube: async () => ({ youtubeId: "x", title: "x" }) },
     );
   });

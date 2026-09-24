@@ -14,10 +14,15 @@ services:
       ROOM_IDLE_TTL_MIN: ${ROOM_IDLE_TTL_MIN:-60}
       # Set to false when /start is behind authentication; see the README.
       CREATE_ROOM_ON_JOIN: ${CREATE_ROOM_ON_JOIN:-true}
+      # The server music library: set to /music and mount your folder below.
+      LIBRARY_DIR: ${LIBRARY_DIR:-}
+      LIBRARY_RESCAN_MIN: ${LIBRARY_RESCAN_MIN:-360}
     volumes:
       # Uploaded media for live rooms. Rooms don't survive a restart, and the
       # server clears this directory on startup.
       - media:/data
+      # Your music, read-only, for the server library:
+      # - /srv/music:/music:ro
 
 volumes:
   media:

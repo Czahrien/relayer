@@ -11,7 +11,7 @@ let dataDir = "";
 async function start(createRoomOnJoin: boolean): Promise<App> {
   dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "lr-app-"));
   ctx = await buildApp(
-    { port: 0, dataDir, maxUploadBytes: 1024 * 1024, roomIdleTtlMs: 60_000, createRoomOnJoin },
+    { port: 0, dataDir, maxUploadBytes: 1024 * 1024, roomIdleTtlMs: 60_000, createRoomOnJoin, libraryRescanMs: 3_600_000 },
     { youtube: async () => ({ youtubeId: "x", title: "x" }) },
   );
   return ctx;

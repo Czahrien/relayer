@@ -102,8 +102,8 @@ Configuration comes from environment variables:
 | `MAX_UPLOAD_MB` | `300` | Maximum size of a single uploaded file. |
 | `ROOM_IDLE_TTL_MIN` | `60` | Minutes an empty room survives before it and its files are deleted. |
 | `CREATE_ROOM_ON_JOIN` | `true` | Whether opening a link to an unknown room creates it. Set to `false` when `/start` is behind authentication (§5). |
-| `LIBRARY_DIR` | unset | *(Planned, §10.)* Root of the server music library. Unset disables the library. |
-| `LIBRARY_RESCAN_MIN` | `360` | *(Planned, §10.)* Minutes between incremental library rescans. |
+| `LIBRARY_DIR` | unset | Root of the server music library (§10). Unset disables the library. |
+| `LIBRARY_RESCAN_MIN` | `360` | Minutes between incremental library rescans (§10). |
 | `YOUTUBE_API_KEY` | unset | *(Planned, §14.)* YouTube Data API key. Unset disables YouTube search. |
 
 ---
@@ -205,7 +205,7 @@ The WebSocket lives at `/ws/:roomId`. Messages are JSON objects of the form `{ t
 | `ping` | `t0` | Clock sync. The server replies with `pong`. Allowed before `hello`. |
 | `addYoutube` | `url, position: "end" \| "next"` | Parse the URL, look up metadata, and insert the item. |
 | `addFiles` | `files: {tempId, title, artist?, album?, discNo?, trackNo?}[], position` | Create items with status `uploading`. The server replies with `filesAccepted`. |
-| `addLibrary` | `trackIds: string[], position` | *(Planned, §10.)* Add server-library tracks as ready `library` items. |
+| `addLibrary` | `trackIds: string[], position` | Add up to 500 server-library tracks as ready `library` items (§10.4). |
 | `play` / `pause` | none | |
 | `seek` | `positionMs` | |
 | `next` | none | Advance to the next item. At the end of the list, go idle. |
@@ -625,8 +625,9 @@ interface LibrarySource {
 - **Albums** group tracks by album artist (falling back to artist) and album title, within one directory, so two different albums called "Greatest Hits" stay separate. The album ID is a hash of those. Album tracks are ordered by disc, then track number, then filename.
 - **Album art** is extracted once per album during the scan (embedded cover of the first track that has one, else a folder image) into `DATA_DIR/library-art/<albumId>.<ext>`.
 - **Scanning** runs in the background at startup and every `LIBRARY_RESCAN_MIN` minutes, parsing about 4 files at a time. It is incremental: the index is cached in `DATA_DIR/library-index.json`, and a file is re-read only if its `size` or `version` changed. Unplayable and unreadable files are remembered in the cache too, so they aren't re-read every scan. Files that disappeared are dropped. Measured with 10,000 generated tracks: a full scan in about 3 s (real files take longer, since it's disk-bound), a no-change rescan in 0.6 s, the cache loaded in 11 ms, and searches in 2–6 ms. Folder watching isn't used, because it's unreliable on Docker mounts and network shares. While the first scan runs, search works on what is indexed so far and reports that indexing is in progress.
+- **Artist tags:** `music-metadata` splits ID3v2.3 artists on "/", reading "AC/DC" as "AC". The app rejoins the artist list with "/" (for uploads too), which restores the tag as written.
 - **Search** is in memory:
-  - Normalize text by case-folding and stripping accents (NFKD, remove combining marks).
+  - Normalize text by case-folding and stripping accents (NFKD, remove combining marks). Apostrophes join words rather than splitting them ("B'Day" is "bday"), and each field also matches as one run-together word, so "acdc" finds "AC/DC".
   - Every query word must prefix-match a word in the track's title, artist, album artist, or album.
   - Rank exact matches over prefix matches, and title and name matches over the rest.
   - Return up to 10 artists, 20 albums, and 50 songs.
@@ -637,7 +638,7 @@ interface LibrarySource {
   - `GET /api/rooms/:roomId/library` → `{ enabled, indexing, trackCount }`
   - `GET /api/rooms/:roomId/library/search?q=` → `{ artists, albums, tracks }`, with `q` up to 200 characters
   - `GET /api/rooms/:roomId/library/albums/:albumId` → the album and its ordered tracks
-  - `GET /api/rooms/:roomId/library/artists/:name` → the artist's albums and tracks
+  - `GET /api/rooms/:roomId/library/artist?name=` → the artist's albums and tracks (a query parameter, so names like "AC/DC" survive intact)
   - `GET /api/rooms/:roomId/library/albums/:albumId/art` → album art for search results
 
   Responses carry track IDs and metadata only, never paths.
@@ -734,8 +735,8 @@ Build in these milestones. Commit after each one with tests passing.
 3. **Queue.** *(Done.)* History, current, and upcoming rendering; jump, play next, reorder, remove, and clear; folder drops with sorting; and the file pickers.
 4. **YouTube.** *(Done.)* URL parsing, the oEmbed lookup, `YouTubePlayer`, duration reporting, and error handling.
 5. **Polish.** *(Done.)* The activity feed, Media Session, keyboard shortcuts, the reconnect banner, idle room cleanup, codec rejection messages, and the responsive layout.
-6. **Library: index.** The `LibrarySource` interface and local-directory source, the scanner with the incremental cache and album art, and in-memory search, all unit-tested.
-7. **Library: rooms.** The room-scoped endpoints, `addLibrary`, referenced media records and serving, and missing-file handling.
+6. **Library: index.** *(Done.)* The `LibrarySource` interface and local-directory source, the scanner with the incremental cache and album art, and in-memory search, all unit-tested.
+7. **Library: rooms.** *(Done.)* The room-scoped endpoints, `addLibrary`, referenced media records and serving, and missing-file handling.
 8. **Library: search UI.** The unified search box, the Library tab, grouped results, album expansion, and the indexing state.
 9. **YouTube search** (§14), once a YouTube Data API key is available.
 

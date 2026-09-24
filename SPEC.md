@@ -100,6 +100,7 @@ Configuration comes from environment variables:
 | `PORT` | `3000` | Port the server listens on. |
 | `DATA_DIR` | `./data` | Directory for uploaded media, cover art, and (§10) the library index cache. |
 | `MAX_UPLOAD_MB` | `300` | Maximum size of a single uploaded file. |
+| `MAX_ROOM_MB` | `2048` | Maximum total size of the uploads one room holds (library tracks don't count). `0` means no limit. |
 | `ROOM_IDLE_TTL_MIN` | `60` | Minutes an empty room survives before it and its files are deleted. |
 | `CREATE_ROOM_ON_JOIN` | `true` | Whether opening a link to an unknown room creates it. Set to `false` when `/start` is behind authentication (§5). |
 | `LIBRARY_DIR` | unset | Root of the server music library (§10). Unset disables the library. |
@@ -247,7 +248,9 @@ The server closes a socket with code **4404** when `hello` names a room that doe
   3. Extracts any embedded cover to a separate file.
   4. Sets the item's status to `ready` and broadcasts.
 
-  It rejects files over `MAX_UPLOAD_MB` and files with unsupported codecs (see §7).
+  It rejects files over `MAX_UPLOAD_MB` and files with unsupported codecs (see §7). It also enforces two storage limits, since anyone with a room link can upload:
+  - **Per room:** a room's uploads may total at most `MAX_ROOM_MB`. Bytes are counted as they stream in, so concurrent uploads can't overshoot. Space is returned when uploads are removed, fail, or turn out to be unplayable.
+  - **Per server:** uploads are refused (`507`) while less than 512 MB of disk would remain free.
 - `GET /media/:roomId/:itemId` serves the audio with correct Range support: `206 Partial Content`, `416` for unsatisfiable ranges, `Accept-Ranges`, and correct `Content-Length` and `Content-Type`. Safari is strict about this; it is covered by tests.
 - `GET /media/:roomId/:itemId/art` serves the cover image.
 - `GET /third-party-licenses.txt` serves the license notices for the client bundle (§13).

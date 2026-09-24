@@ -4,6 +4,8 @@ export interface Config {
   port: number;
   dataDir: string;
   maxUploadBytes: number;
+  /** Total upload storage per room; Infinity when MAX_ROOM_MB is 0. */
+  maxRoomBytes: number;
   roomIdleTtlMs: number;
   /** Whether opening a link to an unknown room creates it (§5). Turn off when room creation is behind auth. */
   createRoomOnJoin: boolean;
@@ -20,6 +22,13 @@ function positiveNumber(name: string, fallback: number): number {
   return value;
 }
 
+/** A number of megabytes where 0 means "no limit". */
+function megabytesOrUnlimited(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw !== undefined && raw.trim() === "0") return Number.POSITIVE_INFINITY;
+  return positiveNumber(name, fallback) * 1024 * 1024;
+}
+
 function boolean(name: string, fallback: boolean): boolean {
   const raw = process.env[name]?.trim().toLowerCase();
   if (raw === undefined || raw === "") return fallback;
@@ -33,6 +42,7 @@ export function loadConfig(): Config {
     port: positiveNumber("PORT", 3000),
     dataDir: path.resolve(process.env.DATA_DIR || "./data"),
     maxUploadBytes: positiveNumber("MAX_UPLOAD_MB", 300) * 1024 * 1024,
+    maxRoomBytes: megabytesOrUnlimited("MAX_ROOM_MB", 2048),
     roomIdleTtlMs: positiveNumber("ROOM_IDLE_TTL_MIN", 60) * 60 * 1000,
     createRoomOnJoin: boolean("CREATE_ROOM_ON_JOIN", true),
     libraryDir: process.env.LIBRARY_DIR ? path.resolve(process.env.LIBRARY_DIR) : undefined,

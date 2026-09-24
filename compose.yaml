@@ -11,6 +11,7 @@ services:
       - "${HOST_PORT:-3000}:3000"
     environment:
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-300}
+      MAX_ROOM_MB: ${MAX_ROOM_MB:-2048}
       ROOM_IDLE_TTL_MIN: ${ROOM_IDLE_TTL_MIN:-60}
       # Set to false when /start is behind authentication; see the README.
       CREATE_ROOM_ON_JOIN: ${CREATE_ROOM_ON_JOIN:-true}

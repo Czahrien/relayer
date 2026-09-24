@@ -28,6 +28,7 @@ async function start(libraryDir: string | undefined): Promise<void> {
       createRoomOnJoin: false,
       libraryDir,
       libraryRescanMs: 60 * 60_000,
+      maxRoomBytes: Number.POSITIVE_INFINITY,
     },
     { youtube: async () => ({ youtubeId: "x", title: "x" }) },
   );

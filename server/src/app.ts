@@ -20,6 +20,8 @@ export interface AppOptions {
   youtube?: YoutubeResolver;
   /** Serve the built client when present (production). */
   serveClient?: boolean;
+  /** Free disk space, for tests (defaults to statfs on DATA_DIR). */
+  freeDiskBytes?: () => Promise<number>;
 }
 
 export interface App {
@@ -79,7 +81,11 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
     return joinable ? { roomId } : reply.code(404).send({ error: "This room doesn't exist." });
   });
 
-  registerMediaRoutes(app, registry, media, { maxUploadBytes: config.maxUploadBytes });
+  registerMediaRoutes(app, registry, media, {
+    maxUploadBytes: config.maxUploadBytes,
+    maxRoomBytes: config.maxRoomBytes,
+    freeDiskBytes: options.freeDiskBytes,
+  });
   registerLibraryRoutes(app, registry, library);
   registerWebSocket(app, registry, hub, options.youtube ?? createYoutubeResolver(), {
     createRoomOnJoin: config.createRoomOnJoin,

@@ -27,7 +27,8 @@
     );
   });
   let dragDepth = $state(0);
-  let showDebug = $state(false);
+  // D toggles it; ?debug opens it on devices without a keyboard.
+  let showDebug = $state(new URLSearchParams(location.search).has("debug"));
 
   function join(name: string) {
     const c = new RoomClient(roomId, getClientId(), name);

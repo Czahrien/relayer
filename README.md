@@ -21,7 +21,8 @@ npm test         # Vitest
 npm run check    # TypeScript + svelte-check
 ```
 
-Press **D** in a room to open the sync debug panel.
+Press **D** in a room to open the sync debug panel, or add `?debug` to the room
+URL (for phones).
 
 ## Production
 

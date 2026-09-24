@@ -11,6 +11,7 @@ import { prepareFiles, type IngestRequest, type PreparedFile } from "./ingest/dr
 import { UploadQueue } from "./ingest/upload.js";
 import { ReconnectingSocket, roomSocketUrl } from "./net/socket.js";
 import { FilePlayer } from "./players/FilePlayer.js";
+import { YouTubePlayer } from "./players/YouTubePlayer.js";
 import { prefs } from "./storage.js";
 import { ClockSync } from "./sync/clock.js";
 import { SyncEngine } from "./sync/engine.js";
@@ -32,11 +33,14 @@ export class RoomClient {
   /** itemId → upload fraction, for this client's own uploads. */
   uploadProgress = $state.raw<Record<string, number>>({});
   volume = $state(prefs.volume);
+  /** The YouTube embed seems to need a tap before it will play (iOS). */
+  youtubeNeedsTap = $state(false);
   muted = $state(prefs.muted);
 
   readonly clock: ClockSync;
   readonly engine: SyncEngine;
   readonly filePlayer = new FilePlayer();
+  readonly youtubePlayer = new YouTubePlayer();
 
   private readonly socket: ReconnectingSocket;
   private readonly uploads: UploadQueue;
@@ -64,7 +68,11 @@ export class RoomClient {
       clockSynced: () => this.clock.synced,
       send: (message) => this.socket.send(message),
       file: this.filePlayer,
+      youtube: this.youtubePlayer,
     });
+    this.youtubePlayer.onNeedsTap = (needed) => {
+      if (this.youtubeNeedsTap !== needed) this.youtubeNeedsTap = needed;
+    };
     this.uploads = new UploadQueue(roomId, {
       onProgress: (itemId, fraction) => (this.uploadProgress = { ...this.uploadProgress, [itemId]: fraction }),
       onDone: (itemId) => {
@@ -93,6 +101,7 @@ export class RoomClient {
     this.socket.stop();
     this.uploads.abortAll();
     this.filePlayer.destroy();
+    this.youtubePlayer.destroy();
   }
 
   serverNow(): number {
@@ -209,7 +218,9 @@ export class RoomClient {
   // ---- Connection ----
 
   private applyVolume(): void {
-    this.filePlayer.setVolume(this.muted ? 0 : this.volume);
+    const volume = this.muted ? 0 : this.volume;
+    this.filePlayer.setVolume(volume);
+    this.youtubePlayer.setVolume(volume);
   }
 
   private handleOpen(): void {

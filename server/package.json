@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --conditions=source src/index.ts",
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "library-report": "tsx --conditions=source src/tools/libraryReport.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.4",

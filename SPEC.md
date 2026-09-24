@@ -681,7 +681,23 @@ services:
       - /srv/music:/music:ro
 ```
 
-### 10.7 Tests
+### 10.8 Library report
+
+`server/src/tools/libraryReport.ts` (`npm run library-report`, or `node server/dist/tools/libraryReport.js` in the image) writes a Markdown report of problems the library works around but that are better fixed in the files. The report logic is `server/src/library/report.ts`. Sections appear only when they have something in them:
+
+- files the app can't play (APE, WMA, AIFF, WavPack, and similar);
+- duplicate copies of a track within an album;
+- folders whose tracks split into several albums (album tag typos, stray files);
+- the same artist and album in several folders;
+- box sets that name each disc;
+- files without album, title, or artist tags, as the files are actually tagged, with the album the app infers;
+- album tracks without a track number;
+- artist names that differ only in capitals, accents, punctuation, "&", a leading "The", or a "feat." credit;
+- albums without art, separating those whose folder holds images the app couldn't identify as the front cover.
+
+It reads the library only, and indexes into a temporary folder rather than the server's cache, so it's safe to run alongside the server.
+
+### 10.9 Tests
 
 - **Scanner:** use generated, tagged audio fixtures in a temporary directory. Check playable-only indexing, the incremental rescan (unchanged files not re-read; changed and removed files handled), stable IDs, album grouping, and that symlinks escaping the root are rejected.
 - **Search:** ranking, accent and case folding, multi-word prefix matching, and result limits.

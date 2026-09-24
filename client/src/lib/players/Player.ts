@@ -1,6 +1,12 @@
 import type { ItemKind, QueueItem } from "@listening-room/shared";
 
 /**
+ * A failure local to this client (e.g. the network dropped). The engine retries
+ * instead of reporting `itemError`, which would skip the item for everyone.
+ */
+export class RecoverableError extends Error {}
+
+/**
  * A local playback backend. The sync engine steers whichever player matches
  * the current item's kind; adding a source type means adding a Player (§2).
  */
@@ -19,7 +25,8 @@ export interface Player {
   isPaused(): boolean;
   isEnded(): boolean;
   onEnded(cb: () => void): void;
-  onError(cb: (message: string) => void): void;
+  /** `recoverable` errors are retried locally rather than reported to the room. */
+  onError(cb: (message: string, recoverable: boolean) => void): void;
   onDuration(cb: (ms: number) => void): void;
   destroy(): void;
 }

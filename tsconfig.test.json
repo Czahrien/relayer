@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true,
+    "paths": {
+      "@listening-room/shared": ["./shared/src/index.ts"]
+    }
+  },
+  "include": ["shared/src/**/*.test.ts", "server/src/**/*.test.ts", "client/src/**/*.test.ts", "vitest.config.ts"]
+}

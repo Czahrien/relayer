@@ -1,5 +1,5 @@
 import type { QueueItem } from "@listening-room/shared";
-import type { Player } from "./Player.js";
+import { RecoverableError, type Player } from "./Player.js";
 
 /** 0.1 s of silent 8 kHz mono WAV, used to unlock audio elements in the Join gesture. */
 function silentWavUri(): string {
@@ -26,6 +26,22 @@ function silentWavUri(): string {
   return `data:audio/wav;base64,${btoa(binary)}`;
 }
 
+/**
+ * Decides whether a media error is this client's problem (retry locally) or
+ * the file's (report it to the room). Browsers report an unreachable source as
+ * "format not supported" (code 4), so for format and decode errors we check
+ * whether the file itself is reachable before blaming it.
+ */
+async function isRecoverable(code: number | undefined, url: string): Promise<boolean> {
+  if (code === 1 || code === 2) return true;
+  try {
+    const response = await fetch(url, { method: "HEAD", cache: "no-store" });
+    return response.status >= 500;
+  } catch {
+    return true;
+  }
+}
+
 const MEDIA_ERRORS: Record<number, string> = {
   1: "Playback was aborted.",
   2: "A network error stopped the download.",
@@ -42,8 +58,9 @@ export class FilePlayer implements Player {
   private readonly els: [HTMLAudioElement, HTMLAudioElement];
   private readonly itemIds: [string | null, string | null] = [null, null];
   private active: 0 | 1 = 0;
+  private loading: string | null = null;
   private endedCb = () => {};
-  private errorCb = (_message: string) => {};
+  private errorCb = (_message: string, _recoverable: boolean) => {};
   private durationCb = (_ms: number) => {};
 
   constructor() {
@@ -83,7 +100,17 @@ export class FilePlayer implements Player {
     }
     const el = this.el;
     el.playbackRate = 1;
-    await waitForMetadata(el);
+    this.loading = item.id;
+    try {
+      await waitForMetadata(el);
+    } catch (err) {
+      this.itemIds[this.active] = null;
+      const code = (err as { code?: number }).code;
+      const message = MEDIA_ERRORS[code ?? 0] ?? "The file couldn't be loaded.";
+      throw (await isRecoverable(code, item.mediaUrl)) ? new RecoverableError(message) : new Error(message);
+    } finally {
+      if (this.loading === item.id) this.loading = null;
+    }
     if (Number.isFinite(el.duration) && el.duration > 0) this.durationCb(el.duration * 1000);
   }
 
@@ -142,7 +169,7 @@ export class FilePlayer implements Player {
     this.endedCb = cb;
   }
 
-  onError(cb: (message: string) => void): void {
+  onError(cb: (message: string, recoverable: boolean) => void): void {
     this.errorCb = cb;
   }
 
@@ -173,8 +200,17 @@ export class FilePlayer implements Player {
     const isActive = () => this.active === index && this.itemIds[index] !== null;
     el.addEventListener("ended", () => isActive() && this.endedCb());
     el.addEventListener("error", () => {
-      if (!isActive() || !el.error) return;
-      this.errorCb(MEDIA_ERRORS[el.error.code] ?? "The file couldn't be played.");
+      const code = el.error?.code;
+      const itemId = this.itemIds[index];
+      const wasActive = isActive();
+      // An element that failed is useless; forget its source so the next
+      // load() or preload() fetches it again.
+      this.itemIds[index] = null;
+      // Failures during load() are reported through its rejection instead.
+      if (!wasActive || this.loading === itemId) return;
+      void isRecoverable(code, el.src).then((recoverable) =>
+        this.errorCb(MEDIA_ERRORS[code ?? 0] ?? "The file couldn't be played.", recoverable),
+      );
     });
     el.addEventListener("durationchange", () => {
       if (isActive() && Number.isFinite(el.duration) && el.duration > 0) this.durationCb(el.duration * 1000);
@@ -183,8 +219,13 @@ export class FilePlayer implements Player {
   }
 }
 
+/** Rejects with the element's MediaError code attached. */
+function mediaError(code: number | undefined): Error & { code?: number } {
+  return Object.assign(new Error("media error"), { code });
+}
+
 function waitForMetadata(el: HTMLAudioElement): Promise<void> {
-  if (el.error) return Promise.reject(new Error(MEDIA_ERRORS[el.error.code] ?? "The file couldn't be loaded."));
+  if (el.error) return Promise.reject(mediaError(el.error.code));
   if (el.readyState >= HTMLMediaElement.HAVE_METADATA) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const done = () => {
@@ -197,7 +238,7 @@ function waitForMetadata(el: HTMLAudioElement): Promise<void> {
     };
     const onError = () => {
       done();
-      reject(new Error(MEDIA_ERRORS[el.error?.code ?? 0] ?? "The file couldn't be loaded."));
+      reject(mediaError(el.error?.code));
     };
     el.addEventListener("loadedmetadata", onLoaded);
     el.addEventListener("error", onError);

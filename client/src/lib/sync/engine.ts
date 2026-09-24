@@ -6,7 +6,7 @@ import {
   type RoomSnapshot,
 } from "@listening-room/shared";
 import type { FilePlayer } from "../players/FilePlayer.js";
-import type { Player } from "../players/Player.js";
+import { RecoverableError, type Player } from "../players/Player.js";
 
 const FILE_TICK_MS = 500;
 const YOUTUBE_TICK_MS = 1000;
@@ -17,6 +17,8 @@ const HOLD_TOLERANCE_MS = 30;
 const FILE_DEADBAND_MS = 40;
 const FILE_HARD_SEEK_MS = 750;
 const YOUTUBE_HARD_SEEK_MS = 600;
+/** Wait before reloading after a local (e.g. network) failure. */
+const RETRY_DELAY_MS = 2000;
 /** Near the end, let the player finish on its own rather than correcting. */
 const END_ZONE_MS = 250;
 
@@ -54,15 +56,18 @@ export class SyncEngine {
   private reportedDuration = new Set<string>();
   private reportedError = new Set<string>();
   private running = false;
+  private retryAfter = 0;
 
   constructor(private readonly deps: EngineDeps) {
     for (const player of this.players()) {
       player.onEnded(() => {
         if (player === this.active && this.loadedId) this.deps.send({ type: "ended", itemId: this.loadedId });
       });
-      player.onError((message) => {
+      player.onError((message, recoverable) => {
         const id = player === this.active ? (this.loadingId ?? this.loadedId) : null;
-        if (id) this.fail(id, message);
+        if (!id) return;
+        if (recoverable) this.retryLater(message);
+        else this.fail(id, message);
       });
       player.onDuration((ms) => {
         const id = player === this.active ? (this.loadedId ?? this.loadingId) : null;
@@ -146,7 +151,8 @@ export class SyncEngine {
       this.loadedId = null;
     }
     if (this.loadedId !== item.id) {
-      this.load(player, item);
+      if (performance.now() >= this.retryAfter) this.load(player, item);
+      else this.setStats(null, "buffering");
       return;
     }
     if (!this.deps.clockSynced()) {
@@ -228,7 +234,8 @@ export class SyncEngine {
       (err: unknown) => {
         if (this.loadingId !== item.id) return;
         this.loadingId = null;
-        this.fail(item.id, err instanceof Error ? err.message : "The item couldn't be loaded.");
+        if (err instanceof RecoverableError) this.retryLater(err.message);
+        else this.fail(item.id, err instanceof Error ? err.message : "The item couldn't be loaded.");
       },
     );
   }
@@ -278,6 +285,14 @@ export class SyncEngine {
     if (!item || item.durationMs !== undefined || this.reportedDuration.has(itemId)) return;
     this.reportedDuration.add(itemId);
     this.deps.send({ type: "reportDuration", itemId, durationMs: Math.round(ms) });
+  }
+
+  /** A local failure: drop the loaded item and load it again shortly. */
+  private retryLater(message: string): void {
+    this.loadedId = null;
+    this.loadingId = null;
+    this.retryAfter = performance.now() + RETRY_DELAY_MS;
+    this.stats.lastAction = `retrying: ${message}`;
   }
 
   private fail(itemId: string, message: string): void {

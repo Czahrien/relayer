@@ -1,8 +1,11 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+  import { effectivePositionAt } from "@listening-room/shared";
+  import { registerMediaSessionHandlers, updateMediaSession } from "../lib/mediaSession.js";
   import { collectFromDataTransfer, collectFromFileList, extractLinks } from "../lib/ingest/drop.js";
   import { RoomClient } from "../lib/room.svelte.js";
   import { getClientId } from "../lib/storage.js";
+  import ActivityFeed from "./ActivityFeed.svelte";
   import AddControls from "./AddControls.svelte";
   import DebugPanel from "./DebugPanel.svelte";
   import DropOverlay from "./DropOverlay.svelte";
@@ -23,7 +26,36 @@
     client = c;
   }
 
-  onDestroy(() => client?.destroy());
+  onDestroy(() => {
+    client?.destroy();
+    document.title = "Listening Room";
+  });
+
+  const current = $derived.by(() => {
+    const snap = client?.snapshot;
+    const pb = snap?.playback ?? null;
+    return { item: pb && snap ? snap.items[snap.currentIndex] : undefined, pb };
+  });
+
+  $effect(() => {
+    const { item, pb } = current;
+    document.title =
+      item && pb?.state === "playing"
+        ? `▶ ${item.title}${item.artist ? ` – ${item.artist}` : ""}`
+        : item
+          ? `${item.title} · Listening Room`
+          : "Listening Room";
+  });
+
+  $effect(() => {
+    if (!client) return;
+    return registerMediaSessionHandlers(client);
+  });
+
+  $effect(() => {
+    const { item, pb } = current;
+    if (client) updateMediaSession(item, pb, client.serverNow());
+  });
 
   function isEditable(target: EventTarget | null): boolean {
     const el = target as HTMLElement | null;
@@ -76,9 +108,48 @@
     }
   }
 
+  /** Space on a focused control should activate that control, not play/pause. */
+  function isControl(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    return !!el?.closest?.("button, a, [role=button], [role=slider], [role=menuitem], summary");
+  }
+
   function onKeyDown(event: KeyboardEvent) {
-    if (!client || isEditable(event.target) || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (event.key === "d" || event.key === "D") showDebug = !showDebug;
+    if (!client || event.defaultPrevented || isEditable(event.target)) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const { item, pb } = current;
+    const seekBy = (delta: number) => {
+      if (!item || !pb || pb.state === "waiting") return;
+      const pos = effectivePositionAt(pb, client!.serverNow(), item.durationMs);
+      client!.send({ type: "seek", positionMs: Math.round(Math.max(0, pos + delta)) });
+    };
+
+    switch (event.key) {
+      case " ":
+        if (isControl(event.target) || !pb || pb.state === "waiting") return;
+        client.send({ type: pb.state === "playing" ? "pause" : "play" });
+        break;
+      case "ArrowLeft":
+        if (event.shiftKey) client.send({ type: "previous" });
+        else seekBy(-10_000);
+        break;
+      case "ArrowRight":
+        if (event.shiftKey) {
+          if (item) client.send({ type: "next" });
+        } else seekBy(10_000);
+        break;
+      case "m":
+      case "M":
+        client.toggleMute();
+        break;
+      case "d":
+      case "D":
+        showDebug = !showDebug;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
   }
 </script>
 
@@ -111,6 +182,7 @@
       <div class="right">
         <AddControls {client} />
         <QueuePanel {client} />
+        <ActivityFeed entries={client.activity} serverNow={() => client!.serverNow()} />
       </div>
     </main>
   </div>

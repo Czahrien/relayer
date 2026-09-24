@@ -102,13 +102,14 @@ export function classifyFormat(format: Pick<IFormat, "container" | "codec">): Fo
 
   if (container === "mpeg") return { ok: true, ext: "mp3", mime: "audio/mpeg" };
   if (container === "flac") return { ok: true, ext: "flac", mime: "audio/flac" };
-  if (container === "adts") return { ok: true, ext: "aac", mime: "audio/aac" };
+  if (container.startsWith("adts")) return { ok: true, ext: "aac", mime: "audio/aac" };
   if (container === "ogg") {
     if (codec.includes("speex")) return { ok: false, message: "Speex audio isn't supported by browsers." };
     return { ok: true, ext: "ogg", mime: "audio/ogg" };
   }
   if (container.startsWith("wave")) {
-    if (codec === "" || codec.includes("pcm") || codec.includes("float")) {
+    // WAVE_FORMAT_EXTENSIBLE (65534) is how 24-bit PCM is usually stored.
+    if (codec === "" || codec === "pcm" || codec === "ieee_float" || codec.endsWith("(65534)")) {
       return { ok: true, ext: "wav", mime: "audio/wav" };
     }
     return { ok: false, message: `This WAV file uses ${format.codec}, which browsers can't play.` };

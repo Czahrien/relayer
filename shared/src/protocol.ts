@@ -76,6 +76,51 @@ export interface ActivityEntry {
   text: string;
 }
 
+// ---- Server library (SPEC §10) ----
+// Responses carry IDs and metadata only, never file paths.
+
+export interface LibraryTrackInfo {
+  id: string;
+  title: string;
+  artist?: string;
+  album?: string;
+  albumId?: string;
+  discNo?: number;
+  trackNo?: number;
+  year?: number;
+  durationMs?: number;
+}
+
+export interface LibraryAlbumInfo {
+  id: string;
+  title: string;
+  /** The album artist, the shared artist of all tracks, or "Various Artists". */
+  artist?: string;
+  year?: number;
+  trackCount: number;
+  durationMs: number;
+  hasArt: boolean;
+}
+
+export interface LibraryArtistInfo {
+  name: string;
+  albumCount: number;
+  trackCount: number;
+}
+
+export interface LibrarySearchResult {
+  artists: LibraryArtistInfo[];
+  albums: LibraryAlbumInfo[];
+  tracks: LibraryTrackInfo[];
+}
+
+export interface LibraryStatus {
+  enabled: boolean;
+  /** True while a scan runs; results cover what's indexed so far. */
+  indexing: boolean;
+  trackCount: number;
+}
+
 // ---- Client → server ----
 
 export type ClientMessage =

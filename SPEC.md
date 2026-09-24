@@ -64,6 +64,7 @@ This has three consequences:
 /shared/src/protocol.ts              wire types + message unions
 /shared/src/timeline.ts              position math and timing constants (used by server and client)
 /shared/src/youtube.ts               YouTube URL parsing, embed-blocked message
+/shared/src/audio.ts                 audio file extensions, titles from filenames
 /server/src/index.ts                 bootstrap and signal handling
 /server/src/app.ts                   routes, /start, static serving (buildApp, used by tests)
 /server/src/config.ts                environment variables
@@ -74,6 +75,10 @@ This has three consequences:
 /server/src/ws.ts                    socket handling, broadcast
 /server/src/media.ts                 uploads, media serving, metadata + art extraction, codec checks
 /server/src/youtube.ts               oEmbed lookup
+/server/src/library/source.ts        LibrarySource interface and the local-directory source (§10.2)
+/server/src/library/library.ts       library index: scanning, cache, albums, art, queries (§10.3)
+/server/src/library/search.ts        text normalization, matching, and ranking
+/server/src/fixtures.ts              test fixtures: tagged WAV files built in memory
 /client/src/lib/net/socket.ts        reconnecting WebSocket
 /client/src/lib/sync/clock.ts        server clock offset estimation
 /client/src/lib/sync/engine.ts       steers the active Player to the room timeline
@@ -582,14 +587,16 @@ interface LibrarySource {
   list(): AsyncIterable<LibraryFile>;
   /** Tags, duration, and codec, reading only what the parser needs. */
   readMetadata(file: LibraryFile, options: { covers: boolean }): Promise<IAudioMetadata>;
-  /** A byte range of the file, for serving with Range support. */
+  /** Current size and version, or null if the file is gone (checked when serving). */
+  stat(path: string): Promise<{ size: number; version: string } | null>;
+  /** A byte range of the file (inclusive), for serving with Range support. */
   open(path: string, range?: { start: number; end: number }): Promise<Readable>;
   /** Folder images (cover.jpg, folder.jpg, ...) next to a file, if any. */
   folderArt(path: string): Promise<{ read(): Promise<Buffer>; mime: string } | null>;
 }
 ```
 
-- **Local directory.** `list` walks the tree (skipping hidden files); `readMetadata` uses `music-metadata`'s `parseFile`; `open` uses `fs.createReadStream` with a range. Resolve real paths and reject anything, including symlink targets, outside the root.
+- **Local directory.** `list` walks the tree (skipping hidden files); `readMetadata` uses `music-metadata`'s `parseFile`; `open` uses `fs.createReadStream` with a range. Resolve real paths and reject anything, including symlink targets and folder images, outside the root. A file reachable both directly and through a symlink is indexed once, under its real path.
 - **WebDAV (future).** `list` uses `PROPFIND` (walking directories, since `Depth: infinity` is often disabled); `readMetadata` parses through a tokenizer that issues HTTP Range requests, so scanning reads only headers, not whole files; `open` proxies the file to the client with Range passed through. The media route then streams from the source rather than from a local path. Scans will be much slower, which the incremental cache (10.3) absorbs.
 
 ### 10.3 Index
@@ -617,7 +624,7 @@ interface LibrarySource {
 
 - **Albums** group tracks by album artist (falling back to artist) and album title, within one directory, so two different albums called "Greatest Hits" stay separate. The album ID is a hash of those. Album tracks are ordered by disc, then track number, then filename.
 - **Album art** is extracted once per album during the scan (embedded cover of the first track that has one, else a folder image) into `DATA_DIR/library-art/<albumId>.<ext>`.
-- **Scanning** runs in the background at startup and every `LIBRARY_RESCAN_MIN` minutes, parsing about 4 files at a time. It is incremental: the index is cached in `DATA_DIR/library-index.json`, and a file is re-read only if its `size` or `version` changed. Files that disappeared are dropped. Folder watching isn't used, because it's unreliable on Docker mounts and network shares. While the first scan runs, search works on what is indexed so far and reports that indexing is in progress.
+- **Scanning** runs in the background at startup and every `LIBRARY_RESCAN_MIN` minutes, parsing about 4 files at a time. It is incremental: the index is cached in `DATA_DIR/library-index.json`, and a file is re-read only if its `size` or `version` changed. Unplayable and unreadable files are remembered in the cache too, so they aren't re-read every scan. Files that disappeared are dropped. Measured with 10,000 generated tracks: a full scan in about 3 s (real files take longer, since it's disk-bound), a no-change rescan in 0.6 s, the cache loaded in 11 ms, and searches in 2–6 ms. Folder watching isn't used, because it's unreliable on Docker mounts and network shares. While the first scan runs, search works on what is indexed so far and reports that indexing is in progress.
 - **Search** is in memory:
   - Normalize text by case-folding and stripping accents (NFKD, remove combining marks).
   - Every query word must prefix-match a word in the track's title, artist, album artist, or album.

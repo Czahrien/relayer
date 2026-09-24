@@ -1,6 +1,8 @@
 // Every way of adding things (drop, paste, pickers) produces an IngestRequest.
 
-export const AUDIO_EXTENSIONS = new Set(["mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "webm"]);
+import { isAudioName, titleFromFilename } from "@listening-room/shared";
+
+export { isAudioName, titleFromFilename };
 
 export interface IngestFile {
   file: File;
@@ -21,15 +23,6 @@ export interface PreparedFile extends IngestFile {
   album?: string;
   discNo?: number;
   trackNo?: number;
-}
-
-function extension(name: string): string {
-  const dot = name.lastIndexOf(".");
-  return dot < 0 ? "" : name.slice(dot + 1).toLowerCase();
-}
-
-export function isAudioName(name: string): boolean {
-  return AUDIO_EXTENSIONS.has(extension(name));
 }
 
 function partition(files: IngestFile[]): Pick<IngestRequest, "files" | "skipped"> {
@@ -125,11 +118,6 @@ export function compareBatch(a: PreparedFile, b: PreparedFile): number {
     (a.trackNo ?? Number.MAX_SAFE_INTEGER) - (b.trackNo ?? Number.MAX_SAFE_INTEGER) ||
     collator.compare(basename(a.path), basename(b.path))
   );
-}
-
-export function titleFromFilename(name: string): string {
-  const stem = name.replace(/\.[^.]+$/, "");
-  return stem.replace(/_/g, " ").trim() || name;
 }
 
 const TAG_CONCURRENCY = 4;

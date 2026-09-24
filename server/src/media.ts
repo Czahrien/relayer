@@ -289,7 +289,7 @@ function sendRange(reply: FastifyReply, rangeHeader: string | undefined, file: s
 }
 
 /** Normalizes a tag's picture format; old ID3 tags use bare names like "JPG". */
-function imageMime(format: string): string | null {
+export function imageMime(format: string): string | null {
   const f = format.toLowerCase();
   if (f.startsWith("image/")) return f === "image/jpg" ? "image/jpeg" : f;
   if (f === "jpg" || f === "jpeg") return "image/jpeg";

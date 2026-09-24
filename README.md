@@ -30,6 +30,9 @@ listener.)
   in another tab (over HTTPS; not on iPhone, where Safari doesn't allow them).
 - **Your music library.** Point the server at a folder of music and rooms can
   search it by song, album, or artist and add whole albums in order.
+- **YouTube search and playlists** with a free YouTube Data API key: search
+  YouTube from the same box, and paste a playlist or YouTube Music album link to
+  add all of it. Videos that can't play here are left out up front.
 - **The details:** cover art, drag-to-reorder (touch too),
   lock-screen and media-key controls, keyboard shortcuts, light and dark themes,
   and layouts for phones and desktops.
@@ -102,6 +105,7 @@ Environment variables:
 | `ROOM_IDLE_TTL_MIN` | `60` | Minutes an empty room survives before it and its uploads are deleted. |
 | `LIBRARY_DIR` | unset | A music folder rooms can search and play from. Unset disables the library. |
 | `LIBRARY_RESCAN_MIN` | `360` | Minutes between library rescans. |
+| `YOUTUBE_API_KEY` | unset | A YouTube Data API key, for YouTube search and playlist links. See [YouTube search](#youtube-search). |
 | `CREATE_ROOM_ON_JOIN` | `true` | Whether opening a link to an unknown room creates it, so links keep working after a restart. Set to `false` when `/start` is behind a login. |
 
 With Docker Compose, you can also set these (and `HOST_PORT`, the port on your
@@ -153,6 +157,30 @@ docker compose exec -T relayer node server/dist/tools/libraryReport.js > library
 The library folder defaults to `LIBRARY_DIR`, and without `--out` the report
 goes to standard output. A relative `--out` path is relative to where you run
 `npm run`.
+
+## YouTube search
+
+Pasting single YouTube links works out of the box. With a YouTube Data API key,
+rooms can also search YouTube (a YouTube tab next to Library), and pasting a
+playlist link, including a YouTube Music album like
+`https://music.youtube.com/playlist?list=OLAK5uy_…`, adds its videos in order.
+Durations are known right away, and videos that can't play in an embedded
+player are left out.
+
+To get a key:
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a
+   project.
+2. Under **APIs & Services → Library**, enable **YouTube Data API v3**.
+3. Under **APIs & Services → Credentials**, create an **API key**. Restrict it
+   to the YouTube Data API v3.
+4. Set `YOUTUBE_API_KEY` to it and restart the server.
+
+The key stays on the server. Google's free quota allows 100 searches a day per
+project; searches run when you press Enter, repeats within 10 minutes are
+cached, and each room can search about once every 2 minutes after a first
+burst of 10. Playlists and pasted links use a separate, much larger allowance.
+When searches run out for the day, pasting links still works.
 
 ## Deploying
 

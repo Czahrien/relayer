@@ -1,12 +1,27 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
-import type { ClientMessage, ServerMessage } from "@relayer/shared";
+import { parseYouTubePlaylistUrl, parseYouTubeUrl, type ClientMessage, type ServerMessage } from "@relayer/shared";
 import type { Library } from "./library/library.js";
 import type { MediaStore } from "./media.js";
 import { CommandError, type Actor, type Room } from "./room.js";
 import { RoomRegistry } from "./rooms.js";
 import { parseClientMessage } from "./validate.js";
 import type { YoutubeResolver } from "./youtube.js";
+import type { YouTubeData, YouTubeVideo } from "./youtubeApi.js";
+
+/** For listeners, not admins: the README explains YOUTUBE_API_KEY. */
+const PLAYLISTS_UNAVAILABLE = "This server can't open YouTube playlists. Add the songs one link at a time.";
+
+function toItemInfo(video: YouTubeVideo) {
+  return {
+    youtubeId: video.youtubeId,
+    title: video.title,
+    artist: video.channel,
+    artUrl: video.thumbnail,
+    durationMs: video.durationMs,
+    error: video.unplayable,
+  };
+}
 
 const HEARTBEAT_MS = 30_000;
 const PRESENCE_THROTTLE_MS = 1000;
@@ -109,6 +124,8 @@ export interface WebSocketOptions {
   createRoomOnJoin: boolean;
   /** The server library, or null when LIBRARY_DIR is unset (§10). */
   library: Library | null;
+  /** The YouTube Data API, or null without YOUTUBE_API_KEY (§14). */
+  youtubeData: YouTubeData | null;
   media: MediaStore;
 }
 
@@ -117,7 +134,7 @@ export function registerWebSocket(
   registry: RoomRegistry,
   hub: Hub,
   resolveYoutube: YoutubeResolver,
-  { createRoomOnJoin, library, media }: WebSocketOptions,
+  { createRoomOnJoin, library, media, youtubeData }: WebSocketOptions,
 ): void {
   const heartbeat = setInterval(() => {
     for (const conn of hub.all()) {
@@ -195,8 +212,26 @@ export function registerWebSocket(
 
     switch (message.type) {
       case "addYoutube": {
-        const info = await resolveYoutube(message.url);
-        room.addYoutube(actor, info, message.position);
+        const listId = parseYouTubePlaylistUrl(message.url);
+        if (listId) {
+          if (!youtubeData) throw new CommandError(PLAYLISTS_UNAVAILABLE);
+          const playlist = await youtubeData.playlist(listId);
+          if (playlist.videos.length === 0) throw new CommandError("None of that playlist's videos can play here.");
+          room.addYoutubeVideos(actor, playlist.videos.map(toItemInfo), message.position, playlist.title);
+          if (playlist.skipped > 0) {
+            const n = playlist.skipped;
+            send(socket, {
+              type: "notice",
+              message: `Left out ${n} ${n === 1 ? "video" : "videos"} from that playlist that can't play here.`,
+            });
+          }
+          return;
+        }
+        // With a key, the API gives the duration up front and says whether it
+        // can play; without one (or if the API fails), oEmbed covers the basics.
+        const id = parseYouTubeUrl(message.url);
+        const video = id && youtubeData ? await youtubeData.video(id).catch(() => undefined) : undefined;
+        room.addYoutube(actor, video ? toItemInfo(video) : await resolveYoutube(message.url), message.position);
         return;
       }
       case "addFiles": {

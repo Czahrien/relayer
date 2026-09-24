@@ -125,6 +125,22 @@ export interface LibraryStatus {
   trackCount: number;
 }
 
+// ---- YouTube search (SPEC §14) ----
+
+export interface YouTubeResult {
+  youtubeId: string;
+  title: string;
+  /** The channel, without YouTube Music's " - Topic" suffix. */
+  channel?: string;
+  durationMs?: number;
+  thumbnail?: string;
+}
+
+export interface YouTubeStatus {
+  /** Search and playlist links work only when the server has a YouTube API key. */
+  enabled: boolean;
+}
+
 // ---- Client → server ----
 
 export type ClientMessage =
@@ -162,7 +178,9 @@ export type ServerMessage =
   // Live entries arrive one at a time; on join the recent log arrives in one message.
   | { type: "activity"; entries: ActivityEntry[] }
   | { type: "presence"; listeners: ListenerHealth[] }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  /** Something worth telling the sender that isn't an error, e.g. skipped playlist videos. */
+  | { type: "notice"; message: string };
 
 export const MAX_NAME_LENGTH = 40;
 export const MAX_CHAT_LENGTH = 500;

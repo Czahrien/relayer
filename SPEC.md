@@ -105,7 +105,7 @@ Configuration comes from environment variables:
 | `CREATE_ROOM_ON_JOIN` | `true` | Whether opening a link to an unknown room creates it. Set to `false` when `/start` is behind authentication (§5). |
 | `LIBRARY_DIR` | unset | Root of the server music library (§10). Unset disables the library. |
 | `LIBRARY_RESCAN_MIN` | `360` | Minutes between incremental library rescans (§10). |
-| `YOUTUBE_API_KEY` | unset | *(Planned, §14.)* YouTube Data API key. Unset disables YouTube search. |
+| `YOUTUBE_API_KEY` | unset | YouTube Data API key (§14). Unset disables YouTube search and playlist links. |
 
 ---
 
@@ -455,9 +455,10 @@ All entry points feed a single ingest function:
 
 - Read `text/uri-list` first, then `text/plain`.
 - Recognize YouTube URLs in these forms: `watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, `/live/`, `youtube-nocookie.com`, and `music.youtube.com`.
-- Ignore playlist parameters for now. (**Stretch:** expand playlists.)
+- A link to a video within a playlist is the video. A playlist link (`/playlist?list=…`, including YouTube Music album playlists) expands into its videos through the Data API (§14); without an API key it is refused with "This server can't open YouTube playlists. Add the songs one link at a time."
 - For non-YouTube URLs, show an error toast saying only YouTube links are supported.
-- The server fetches metadata (title, channel, thumbnail) from `https://www.youtube.com/oembed?url=<url>&format=json`. This needs no API key. The duration comes from the first client's `reportDuration`.
+- With an API key, the server looks the video up with `videos.list` (title, channel, duration, and whether it can play; §14), falling back to oEmbed if that fails.
+- Without one, the server fetches metadata (title, channel, thumbnail) from `https://www.youtube.com/oembed?url=<url>&format=json`. This needs no API key. The duration comes from the first client's `reportDuration`.
   - `401` or `403` means embedding is disabled: the item is added already marked `error` with the embed-blocked message, so it is skipped.
   - `400` or `404` means the video doesn't exist or is private: the link is rejected.
   - If YouTube is unreachable, the item is added with a generic title and thumbnail.
@@ -771,7 +772,7 @@ Build in these milestones. Commit after each one with tests passing.
 6. **Library: index.** *(Done.)* The `LibrarySource` interface and local-directory source, the scanner with the incremental cache and album art, and in-memory search, all unit-tested.
 7. **Library: rooms.** *(Done.)* The room-scoped endpoints, `addLibrary`, referenced media records and serving, and missing-file handling.
 8. **Library: search UI.** *(Done.)* The unified search box, the Library tab, grouped results, album expansion, and the indexing state.
-9. **YouTube search** (§14), once a YouTube Data API key is available.
+9. **YouTube search and playlists.** *(Done.)* The Data API client, the room-scoped search endpoint, the YouTube tab, and playlist expansion (§14).
 
 Don't add features beyond this spec without asking first.
 
@@ -798,18 +799,23 @@ Don't add features beyond this spec without asking first.
 
 ---
 
-## 14. YouTube search (planned)
+## 14. YouTube search and playlists
 
-Search YouTube from the same search box, in a YouTube tab, and add results like pasted links.
+Search YouTube from the same search box, in a YouTube tab, and add results like pasted links. Paste a playlist link to add its videos.
 
-- **API.** The official YouTube Data API v3, called from the server so the `YOUTUBE_API_KEY` stays secret. When the key is unset, the tab is hidden.
+- **API.** The official YouTube Data API v3, called from the server (`server/src/youtubeApi.ts`) so the `YOUTUBE_API_KEY` stays secret. When the key is unset, the tab is hidden and playlist links are refused.
+- **Endpoints.** `GET /api/rooms/:roomId/youtube` returns `{ enabled }`. `GET /api/rooms/:roomId/youtube/search?q=` returns `{ results: YouTubeResult[] }`: `404` when disabled or the room doesn't exist, `400` for queries over 200 characters, `429` when the room searches too often (a burst of 10, then one more every 2 minutes, per room), and `503` with a readable message when YouTube fails or the quota is used up.
+- **Tabs.** When both the library and YouTube search are on, Library and YouTube tabs sit above the box; with only one, the box searches that. Pasted links are added in either tab. Results show a thumbnail, title, channel, and duration, with Add and Play next buttons that send `addYoutube` with the watch URL.
 - **Search.** `search.list` with `type=video`, `videoEmbeddable=true` (the uploader allows embedding), `videoSyndicated=true` (playable outside youtube.com), and `maxResults` of about 15.
 - **Details.** One `videos.list` call for the result IDs (up to 50 per call) with `part=contentDetails,status,snippet`. This gives:
   - the ISO 8601 duration, so YouTube items no longer wait for a player to report it;
   - `status.embeddable`;
   - `contentDetails.contentRating.ytRating === "ytAgeRestricted"` (age-restricted videos can't play in embeds, so drop them);
-  - `contentDetails.regionRestriction` (label restricted videos).
+  - `snippet.liveBroadcastContent` (live streams have no fixed timeline, so drop them).
+
+  Region restrictions aren't labeled: the server can't know where listeners are.
 - **Embeddability is best-effort.** YouTube documents that embeddable videos "may still be blocked from playback in embedded players due to platform policies or third-party claims", which is typical of official music uploads. The existing runtime handling (error 101/150 → `itemError` with the embed-blocked message) stays.
+- **Playlists.** `playlists.list` for the title (a YouTube Music album's "Album - " prefix is dropped), then `playlistItems.list` 50 at a time, up to 500 videos, and `videos.list` for their details. Playable videos are added in order as one batch, with the playlist title as their album; the rest are left out, and the adding client gets a `notice` message ("Left out 2 videos from that playlist that can't play here."), shown as an info toast. Missing or private playlists, and mixes (`RD…` lists, which the API can't read), get plain-language errors.
 - **Quota.** The default is 100 `search.list` calls per day per Google Cloud project, plus 10,000 units per day for other calls, where `videos.list` costs 1 unit. So:
   - YouTube search runs on Enter, not as you type;
   - identical queries are cached for about 10 minutes;

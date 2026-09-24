@@ -22,6 +22,7 @@
       { label: "Best RTT", value: ms(client.clock.bestRtt, 1) },
       { label: "Drift", value: stats.driftMs === null ? "—" : `${stats.driftMs >= 0 ? "+" : ""}${stats.driftMs.toFixed(0)} ms` },
       { label: "Rate", value: stats.rate.toFixed(4) },
+      { label: "Seek lead", value: ms(stats.seekLeadMs) },
       { label: "Player", value: `${player?.kind ?? "none"} · ${stats.state}${player?.isBuffering() ? " · buffering" : ""}` },
       { label: "Position", value: player ? ms(player.positionMs()) : "—" },
       { label: "Rev", value: String(client.snapshot?.rev ?? "—") },

@@ -17,6 +17,8 @@ const HOLD_TOLERANCE_MS = 30;
 const FILE_DEADBAND_MS = 40;
 const FILE_HARD_SEEK_MS = 750;
 const YOUTUBE_HARD_SEEK_MS = 600;
+/** Upper bound for the learned seek lead. */
+const MAX_SEEK_LEAD_MS = 3000;
 /** Wait before reloading after a local (e.g. network) failure. */
 const RETRY_DELAY_MS = 2000;
 /** Near the end, let the player finish on its own rather than correcting. */
@@ -27,6 +29,8 @@ export interface EngineStats {
   rate: number;
   state: ListenerSyncState;
   itemId: string | null;
+  /** How far ahead hard seeks aim, learned from how long this client's seeks take. */
+  seekLeadMs: number;
   lastAction: string;
 }
 
@@ -44,7 +48,14 @@ export interface EngineDeps {
  * It never changes the room: it only reads snapshots and reports back.
  */
 export class SyncEngine {
-  readonly stats: EngineStats = { driftMs: null, rate: 1, state: "idle", itemId: null, lastAction: "" };
+  readonly stats: EngineStats = {
+    driftMs: null,
+    rate: 1,
+    state: "idle",
+    itemId: null,
+    seekLeadMs: 0,
+    lastAction: "",
+  };
 
   private active: Player | null = null;
   private loadedId: string | null = null;
@@ -56,6 +67,15 @@ export class SyncEngine {
   private reportedDuration = new Set<string>();
   private reportedError = new Set<string>();
   private running = false;
+  /**
+   * Per-player seek lead. A hard seek to where the room is *now* lands late by
+   * however long the seek takes to become audible (on Safari, fetching a new
+   * byte range can take over a second). Without a lead, that lateness exceeds
+   * the hard-seek threshold and the player seeks forever.
+   */
+  private readonly seekLead = new Map<Player, number>();
+  /** The player whose last hard seek hasn't been measured yet. */
+  private unmeasuredSeek: Player | null = null;
   private retryAfter = 0;
 
   constructor(private readonly deps: EngineDeps) {
@@ -200,12 +220,18 @@ export class SyncEngine {
 
     const drift = actual - expected;
     const magnitude = Math.abs(drift);
+    if (this.unmeasuredSeek === player) {
+      // Where the last hard seek landed tells us how much lead it needed.
+      this.unmeasuredSeek = null;
+      const lead = Math.min(MAX_SEEK_LEAD_MS, Math.max(0, (this.seekLead.get(player) ?? 0) - drift));
+      this.seekLead.set(player, lead);
+    }
     if (player.kind === "youtube") {
-      if (magnitude > YOUTUBE_HARD_SEEK_MS) this.seek(player, expected, `seek (drift ${Math.round(drift)} ms)`);
+      if (magnitude > YOUTUBE_HARD_SEEK_MS) this.hardSeek(player, expected, drift);
     } else if (magnitude > FILE_HARD_SEEK_MS) {
       player.setRate(1);
       this.stats.rate = 1;
-      this.seek(player, expected, `seek (drift ${Math.round(drift)} ms)`);
+      this.hardSeek(player, expected, drift);
     } else if (magnitude <= FILE_DEADBAND_MS) {
       player.setRate(1);
       this.stats.rate = 1;
@@ -238,6 +264,13 @@ export class SyncEngine {
         else this.fail(item.id, err instanceof Error ? err.message : "The item couldn't be loaded.");
       },
     );
+  }
+
+  /** A drift correction: aim ahead by the learned lead, then measure where it landed. */
+  private hardSeek(player: Player, expected: number, drift: number): void {
+    const lead = this.seekLead.get(player) ?? 0;
+    this.seek(player, expected + lead, `seek (drift ${Math.round(drift)} ms, lead ${Math.round(lead)} ms)`);
+    this.unmeasuredSeek = player;
   }
 
   private seek(player: Player, ms: number, reason: string): void {
@@ -307,6 +340,7 @@ export class SyncEngine {
     this.stats.driftMs = driftMs;
     this.stats.state = state;
     this.stats.itemId = this.loadedId;
+    this.stats.seekLeadMs = this.active ? (this.seekLead.get(this.active) ?? 0) : 0;
     if (state !== "playing") this.stats.rate = 1;
   }
 

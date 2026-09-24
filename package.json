@@ -21,7 +21,7 @@
     "library-report": "npm run library-report -w server --"
   },
   "devDependencies": {
-    "@types/node": "^22.20.4",
+    "@types/node": "^26.6.2",
     "concurrently": "^10.0.5",
     "tsx": "^4.23.15",
     "typescript": "~6.0",

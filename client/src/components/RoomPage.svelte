@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { formatTime } from "@listening-room/shared";
   import { collectFromDataTransfer, collectFromFileList, extractLinks } from "../lib/ingest/drop.js";
   import { RoomClient } from "../lib/room.svelte.js";
   import { getClientId } from "../lib/storage.js";
@@ -10,6 +9,7 @@
   import Header from "./Header.svelte";
   import JoinOverlay from "./JoinOverlay.svelte";
   import NowPlaying from "./NowPlaying.svelte";
+  import QueuePanel from "./QueuePanel.svelte";
 
   let { roomId }: { roomId: string } = $props();
   let client: RoomClient | null = $state(null);
@@ -110,26 +110,7 @@
       </div>
       <div class="right">
         <AddControls {client} />
-        <ol class="queue">
-          {#each client.snapshot?.items ?? [] as item, i (item.id)}
-            <li class:current={i === client.snapshot?.currentIndex} class:history={i < (client.snapshot?.currentIndex ?? 0)}>
-              <button type="button" onclick={() => client?.send({ type: "jump", itemId: item.id })}>
-                {item.title}
-              </button>
-              <span>
-                {#if item.status === "uploading"}
-                  {client.uploadProgress[item.id] !== undefined
-                    ? `${Math.round(client.uploadProgress[item.id]! * 100)}%`
-                    : "uploading…"}
-                {:else if item.status === "error"}
-                  {item.error}
-                {:else}
-                  {formatTime(item.durationMs)}
-                {/if}
-              </span>
-            </li>
-          {/each}
-        </ol>
+        <QueuePanel {client} />
       </div>
     </main>
   </div>
@@ -169,11 +150,10 @@
     }
   }
 
-  .queue li.current {
-    font-weight: 700;
-  }
-
-  .queue li.history {
-    opacity: 0.6;
+  .right {
+    display: grid;
+    gap: 24px;
+    align-content: start;
+    min-width: 0;
   }
 </style>

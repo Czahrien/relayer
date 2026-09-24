@@ -4,7 +4,7 @@ import path from "node:path";
 import { selectCover, type IAudioMetadata } from "music-metadata";
 import {
   joinedArtist,
-  titleFromFilename,
+  parseFilename,
   type LibraryAlbumInfo,
   type LibraryArtistInfo,
   type LibrarySearchResult,
@@ -13,6 +13,7 @@ import {
 import { classifyFormat, imageMime } from "../media.js";
 import { indexFields, normalize, parseQuery, rank, type IndexedField } from "./search.js";
 import type { LibraryFile, LibrarySource } from "./source.js";
+import { isDiscFolder, splitDisc } from "./tags.js";
 
 /** An indexed track. `path`, `size`, and `version` stay on the server. */
 export interface LibraryTrack extends Omit<LibraryTrackInfo, "hasArt"> {
@@ -51,8 +52,11 @@ interface SkippedFile {
   reason: "unplayable" | "unreadable";
 }
 
+/** Bump when indexing changes what's stored, so old caches are rebuilt. */
+const CACHE_VERSION = 2;
+
 interface CacheFile {
-  version: 1;
+  version: typeof CACHE_VERSION;
   tracks: LibraryTrack[];
   skipped: Record<string, SkippedFile>;
   art: Record<string, AlbumArt>;
@@ -86,7 +90,6 @@ export interface LibraryOptions {
 
 const LIMITS = { artists: 10, albums: 20, tracks: 50 };
 const MAX_TEXT = 300;
-const MULTI_DISC_DIR = /^(cd|disc|disk)\s*\d+$/i;
 const VARIOUS_ARTISTS = "Various Artists";
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
@@ -107,7 +110,8 @@ function compareTracks(a: LibraryTrack, b: LibraryTrack): number {
 
 function albumDir(trackPath: string): string {
   const parts = trackPath.split("/").slice(0, -1);
-  if (parts.length > 1 && MULTI_DISC_DIR.test(parts.at(-1)!)) parts.pop();
+  // One disc of a set ("CD2", "666 - CD 2"): the album is the parent folder.
+  if (parts.length > 1 && isDiscFolder(parts.at(-1)!)) parts.pop();
   return parts.join("/");
 }
 
@@ -170,7 +174,7 @@ export class Library {
     } catch {
       return; // no cache yet, or unreadable: the scan rebuilds it
     }
-    if (cache.version !== 1 || !Array.isArray(cache.tracks)) return;
+    if (cache.version !== CACHE_VERSION || !Array.isArray(cache.tracks)) return;
     this.tracks = new Map(cache.tracks.map((t) => [t.id, t]));
     this.skipped = new Map(Object.entries(cache.skipped ?? {}));
     this.art = new Map(Object.entries(cache.art ?? {}));
@@ -339,18 +343,23 @@ export class Library {
     }
     this.skipped.delete(id);
     const { common, format } = meta;
+    // Untagged files fall back to the filename, which often carries the track number.
+    const fromName = parseFilename(file.path.slice(file.path.lastIndexOf("/") + 1));
+    // "Moonmadness - CD 1" is disc 1 of "Moonmadness".
+    const albumTag = clean(common.album);
+    const album = albumTag ? splitDisc(albumTag) : undefined;
     const track: LibraryTrack = {
       id,
       path: file.path,
       size: file.size,
       version: file.version,
       mime: verdict.mime,
-      title: clean(common.title) ?? titleFromFilename(file.path.slice(file.path.lastIndexOf("/") + 1)),
+      title: clean(common.title) ?? fromName.title,
       artist: clean(joinedArtist(common)),
       albumArtist: clean(common.albumartist),
-      album: clean(common.album),
-      discNo: common.disk.no ?? undefined,
-      trackNo: common.track.no ?? undefined,
+      album: album?.title,
+      discNo: common.disk.no ?? album?.disc,
+      trackNo: common.track.no ?? fromName.trackNo,
       year: common.year ?? undefined,
       durationMs: format.duration && Number.isFinite(format.duration) ? Math.round(format.duration * 1000) : undefined,
     };
@@ -378,10 +387,11 @@ export class Library {
       if (cached?.key === key && (!cached.file || (await exists(path.join(this.artDir, cached.file))))) continue;
       this.art.set(album.id, await this.extractArt(album, key));
     }
-    for (const [albumId, art] of this.art) {
-      if (albums.has(albumId)) continue;
-      this.art.delete(albumId);
-      if (art.file) await fs.rm(path.join(this.artDir, art.file), { force: true });
+    for (const albumId of this.art.keys()) if (!albums.has(albumId)) this.art.delete(albumId);
+    // Delete any art file nothing refers to (vanished albums, or an older cache).
+    const kept = new Set([...this.art.values()].map((a) => a.file));
+    for (const file of await fs.readdir(this.artDir)) {
+      if (!kept.has(file)) await fs.rm(path.join(this.artDir, file), { force: true });
     }
     // Art presence is part of the album view.
     for (const album of albums.values()) album.hasArt = !!this.art.get(album.id)?.file;
@@ -415,7 +425,7 @@ export class Library {
 
   private async save(): Promise<void> {
     const cache: CacheFile = {
-      version: 1,
+      version: CACHE_VERSION,
       tracks: [...this.tracks.values()],
       skipped: Object.fromEntries(this.skipped),
       art: Object.fromEntries(this.art),

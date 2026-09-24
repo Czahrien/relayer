@@ -37,12 +37,13 @@
     }
   }
 
-  type Health = "good" | "fair" | "poor" | "unknown";
+  type Health = "good" | "fair" | "poor" | "blocked" | "unknown";
 
   function health(clientId: string): Health {
     const h = presence[clientId];
     if (!h) return "unknown";
     if (h.state === "buffering") return "poor";
+    if (h.state === "blocked") return "blocked";
     if (h.driftMs === null) return h.state === "loading" ? "unknown" : "good";
     const drift = Math.abs(h.driftMs);
     return drift <= 100 ? "good" : drift <= 500 ? "fair" : "poor";
@@ -52,6 +53,7 @@
     good: "in sync",
     fair: "slightly out of sync",
     poor: "out of sync or buffering",
+    blocked: "can't play this track",
     unknown: "sync unknown",
   };
 </script>
@@ -189,5 +191,10 @@
 
   .dot.poor {
     background: var(--bad);
+  }
+
+  .dot.blocked {
+    background: var(--bg);
+    box-shadow: inset 0 0 0 2px var(--bad);
   }
 </style>

@@ -6,7 +6,7 @@ import {
   type RoomSnapshot,
 } from "@relayer/shared";
 import type { FilePlayer } from "../players/FilePlayer.js";
-import { RecoverableError, type Player } from "../players/Player.js";
+import { LocalError, RecoverableError, type Player } from "../players/Player.js";
 
 const FILE_TICK_MS = 500;
 const YOUTUBE_TICK_MS = 1000;
@@ -61,6 +61,8 @@ export interface EngineDeps {
   file: FilePlayer;
   youtube?: Player;
   correction?: CorrectionMode;
+  /** An item won't play in this browser, though it may for others (LocalError). */
+  onBlockedHere?(itemId: string, message: string): void;
 }
 
 /**
@@ -89,6 +91,8 @@ export class SyncEngine {
   private statusTimer: ReturnType<typeof setInterval> | null = null;
   private reportedDuration = new Set<string>();
   private reportedError = new Set<string>();
+  /** Items that won't play here; this client sits them out while the room plays on. */
+  private blockedHere = new Set<string>();
   private running = false;
   /**
    * Per-player seek lead. A hard seek to where the room is *now* lands late by
@@ -121,11 +125,9 @@ export class SyncEngine {
       player.onEnded(() => {
         if (player === this.active && this.loadedId) this.deps.send({ type: "ended", itemId: this.loadedId });
       });
-      player.onError((message, recoverable) => {
+      player.onError((error) => {
         const id = player === this.active ? (this.loadingId ?? this.loadedId) : null;
-        if (!id) return;
-        if (recoverable) this.retryLater(message);
-        else this.fail(id, message);
+        if (id) this.handleFailure(id, error);
       });
       player.onDuration((ms) => {
         const id = player === this.active ? (this.loadedId ?? this.loadingId) : null;
@@ -195,6 +197,13 @@ export class SyncEngine {
       this.clearStartTimer();
       this.active?.pause();
       this.setStats(null, "paused");
+      return;
+    }
+
+    if (this.blockedHere.has(item.id)) {
+      this.clearStartTimer();
+      this.active?.pause();
+      this.setStats(null, "blocked");
       return;
     }
 
@@ -316,8 +325,7 @@ export class SyncEngine {
       (err: unknown) => {
         if (this.loadingId !== item.id) return;
         this.loadingId = null;
-        if (err instanceof RecoverableError) this.retryLater(err.message);
-        else this.fail(item.id, err instanceof Error ? err.message : "The item couldn't be loaded.");
+        this.handleFailure(item.id, err instanceof Error ? err : new Error("The item couldn't be loaded."));
       },
     );
   }
@@ -393,6 +401,24 @@ export class SyncEngine {
     if (!item || item.durationMs !== undefined || this.reportedDuration.has(itemId)) return;
     this.reportedDuration.add(itemId);
     this.deps.send({ type: "reportDuration", itemId, durationMs: Math.round(ms) });
+  }
+
+  private handleFailure(itemId: string, error: Error): void {
+    if (error instanceof RecoverableError) this.retryLater(error.message);
+    else if (error instanceof LocalError) this.blockHere(itemId, error.message);
+    else this.fail(itemId, error.message);
+  }
+
+  /** Sits the item out here and tells the room, which skips it only if it fails for everyone. */
+  private blockHere(itemId: string, message: string): void {
+    if (this.blockedHere.has(itemId)) return;
+    this.blockedHere.add(itemId);
+    if (this.loadedId === itemId) this.loadedId = null;
+    this.active?.pause();
+    this.note(`blocked here: ${message}`);
+    this.deps.send({ type: "itemError", itemId, message, local: true });
+    this.deps.onBlockedHere?.(itemId, message);
+    this.kick();
   }
 
   /** A local failure: drop the loaded item and load it again shortly. */

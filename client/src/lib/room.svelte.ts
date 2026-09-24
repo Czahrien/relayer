@@ -111,6 +111,7 @@ export class RoomClient {
       file: this.filePlayer,
       youtube: this.youtubePlayer,
       correction: correctionMode(),
+      onBlockedHere: (itemId) => this.announceBlockedHere(itemId),
     });
     this.youtubePlayer.onNeedsTap = (needed) => {
       if (this.youtubeNeedsTap !== needed) this.youtubeNeedsTap = needed;
@@ -206,6 +207,17 @@ export class RoomClient {
       body: latest.text,
       tag: `chat-${this.roomId}`,
     });
+  }
+
+  /** Says why a track is silent here while it plays for everyone else. */
+  private announceBlockedHere(itemId: string): void {
+    const title = this.snapshot?.items.find((item) => item.id === itemId)?.title ?? "This video";
+    // YouTube refuses many videos to pages opened by IP address; a hostname works.
+    const byAddress = /^[\d.]+$|^\[[\da-f:]+\]$/i.test(location.hostname);
+    const hint = byAddress
+      ? "YouTube refuses many videos on pages opened by IP address. Open this room by the server's name instead."
+      : "It may be playing for the others. Browser extensions that remove referrers can cause this.";
+    toast(`“${title}” won't play in this browser. ${hint}`, "error", 10_000);
   }
 
   // ---- Server library ----

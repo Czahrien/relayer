@@ -7,6 +7,15 @@ import type { ItemKind, QueueItem } from "@relayer/shared";
 export class RecoverableError extends Error {}
 
 /**
+ * The item won't play in this browser but may play for others: YouTube decides
+ * whether to embed a video from the page's address and referrer, so a page
+ * opened by IP address, or an extension that strips referrers, is refused
+ * where everyone else plays fine. The engine sits the item out and reports it
+ * with `local`, and the room skips it only if it fails for everyone.
+ */
+export class LocalError extends Error {}
+
+/**
  * A local playback backend. The sync engine steers whichever player matches
  * the current item's kind; adding a source type means adding a Player (§2).
  */
@@ -25,8 +34,8 @@ export interface Player {
   isPaused(): boolean;
   isEnded(): boolean;
   onEnded(cb: () => void): void;
-  /** `recoverable` errors are retried locally rather than reported to the room. */
-  onError(cb: (message: string, recoverable: boolean) => void): void;
+  /** A failure after load(): a RecoverableError, a LocalError, or any other Error. */
+  onError(cb: (error: Error) => void): void;
   onDuration(cb: (ms: number) => void): void;
   destroy(): void;
 }

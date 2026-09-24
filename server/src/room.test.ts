@@ -572,6 +572,32 @@ describe("errors", () => {
     expect(state().items[0]).toMatchObject({ status: "error", error: "Can't decode" });
   });
 
+  it("skips an item that fails locally only once it has failed for every listener", () => {
+    const { room, state, current, id, addReady, activity } = setup();
+    room.join(alice.clientId, alice.name);
+    room.join(bob.clientId, bob.name);
+    addReady(["A", "B"]);
+    room.itemError(id("A"), "Refused", alice.clientId);
+    expect(current()).toBe("A");
+    expect(state().items[0]!.status).toBe("ready");
+    room.itemError(id("A"), "Refused", alice.clientId); // repeats don't count twice
+    expect(current()).toBe("A");
+    room.itemError(id("A"), "Refused", bob.clientId);
+    expect(current()).toBe("B");
+    expect(state().items[0]).toMatchObject({ status: "error", error: "Refused" });
+    expect(activity.at(-1)?.text).toBe("couldn't play “A”: Refused");
+  });
+
+  it("skips a locally failing item when the listeners it played for leave", () => {
+    const { room, current, id, addReady } = setup();
+    room.join(alice.clientId, alice.name);
+    room.join(bob.clientId, bob.name);
+    addReady(["A", "B"]);
+    room.itemError(id("A"), "Refused", alice.clientId);
+    room.leave(bob.clientId);
+    expect(current()).toBe("B");
+  });
+
   it("goes idle when only error items remain", () => {
     const { room, state } = setup();
     room.addYoutube(alice, { youtubeId: "dQw4w9WgXcQ", title: "Blocked", error: "Embedding disabled" }, "end");

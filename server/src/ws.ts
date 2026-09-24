@@ -292,7 +292,7 @@ export function registerWebSocket(
       case "ended":
         return room.ended(message.itemId);
       case "itemError":
-        return room.itemError(message.itemId, message.message);
+        return room.itemError(message.itemId, message.message, message.local ? actor.clientId : undefined);
       case "status":
         return room.setHealth(actor.clientId, message.driftMs, message.state);
     }

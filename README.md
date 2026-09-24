@@ -240,6 +240,20 @@ music.example.com {
 - **YouTube:** some videos, especially official music uploads, don't allow
   playback on other sites. Those are marked in the queue and skipped. On iPhone,
   the first YouTube video may need a tap on the video itself.
+- **YouTube checks the site embedding it.** The embedded player decides whether
+  to play based on the page's address, which the browser sends as its referrer.
+  - Over a raw IP address (such as `http://192.168.1.20:3000`), many videos,
+    music especially, are refused as "not allowed" even though they play fine
+    through a hostname. Open rooms by name (even an internal one like
+    `http://relayer.internal:3000`), not by address.
+    [Others have hit this too.](https://github.com/Anonym-tsk/MMM-YouTube/issues/12)
+  - Anything that strips the referrer breaks every video (YouTube's error 153),
+    such as uBlock Origin's "Remove referrers" setting or a `no-referrer`
+    policy added by a proxy in front of Relayer.
+    [More on error 153.](https://til.simonwillison.net/youtube/fixing-153-embed)
+  - Either way, only that listener misses out: their browser sits the video out
+    and says why, and it plays on for everyone else. The room skips a video only
+    when it fails for everyone.
 - **Debugging sync:** press **D** in a room, or add `?debug` to the room link on
   a phone, to see clock offset, drift, and recent sync actions.
 

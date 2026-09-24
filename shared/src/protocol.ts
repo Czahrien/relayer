@@ -61,8 +61,11 @@ export interface FileDescriptor {
   trackNo?: number;
 }
 
-/** What a client's player is doing, as reported in `status`. */
-export type ListenerSyncState = "playing" | "paused" | "buffering" | "loading" | "idle";
+/**
+ * What a client's player is doing, as reported in `status`. `blocked` means the
+ * current item won't play for this listener (e.g. YouTube refused the embed).
+ */
+export type ListenerSyncState = "playing" | "paused" | "buffering" | "loading" | "idle" | "blocked";
 
 export interface ListenerHealth {
   clientId: string;
@@ -164,7 +167,12 @@ export type ClientMessage =
   | { type: "chat"; text: string }
   | { type: "reportDuration"; itemId: string; durationMs: number }
   | { type: "ended"; itemId: string }
-  | { type: "itemError"; itemId: string; message: string }
+  /**
+   * `local`: the failure may be this client's alone (YouTube refuses embeds
+   * based on the page's address and referrer), so the item is only marked
+   * broken once every listener in the room has reported it.
+   */
+  | { type: "itemError"; itemId: string; message: string; local?: boolean }
   | { type: "status"; driftMs: number | null; state: ListenerSyncState };
 
 export type ClientMessageType = ClientMessage["type"];

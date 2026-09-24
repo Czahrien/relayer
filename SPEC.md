@@ -538,6 +538,11 @@ On wide screens (900 px and up), the room page uses two columns: now playing on 
 - **Debug panel.** Opened with D, or with `?debug` in the room URL (for phones). Shows the clock offset, best RTT, current drift, playback rate, correction mode, seek lead, start lead, player state, position, snapshot `rev`, and the last eight engine actions with timestamps and drift. This is essential for verifying sync.
 - **Media Session API** (file and library items). Set the metadata (title, artist, album, artwork) and call `setPositionState`. Register handlers for play, pause, next, previous, and seek that send the matching room commands. This makes lock-screen controls and hardware media keys work. YouTube's embed manages its own session.
 - **Tab title.** Set `document.title` to "▶ Title – Artist" while something is playing.
+- **Browser notifications.** A bell in the header opens two per-viewer options, *When a song starts* and *When someone sends a message*, remembered in the browser. Permission is requested only when one is ticked.
+  - **When they appear:** only while the room tab isn't focused. Never for the viewer's own messages, and not for the track already playing when they join or reconnect.
+  - **Replacing, not stacking:** song notifications (title, "artist — album", art) replace each other, as do chat notifications. Clicking one returns to the room.
+  - **Where they work:** they need a secure context (HTTPS or localhost); over plain HTTP, the menu says so. iOS Safari doesn't offer notifications to ordinary pages (only to Home Screen apps with push), and the menu says that too.
+  - **Service worker:** Android Chrome only shows notifications through a service worker, so `notifications-sw.js` exists for that alone. It handles notification clicks, and nothing else: no caching, fetch handling, or push. There is no push server; notifications come from the open page.
 
 ### Visual direction
 

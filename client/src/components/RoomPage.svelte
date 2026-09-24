@@ -11,6 +11,7 @@
   import DropOverlay from "./DropOverlay.svelte";
   import Header from "./Header.svelte";
   import JoinOverlay from "./JoinOverlay.svelte";
+  import NotificationsMenu from "./NotificationsMenu.svelte";
   import NowPlaying from "./NowPlaying.svelte";
   import QueuePanel from "./QueuePanel.svelte";
   import RoomMissing from "./RoomMissing.svelte";
@@ -187,7 +188,11 @@
       listeners={client.snapshot?.listeners ?? []}
       presence={client.presence}
       selfId={client.clientId}
-    />
+    >
+      {#snippet actions()}
+        <NotificationsMenu client={client!} />
+      {/snippet}
+    </Header>
     {#if client.hasConnected && !client.connected}
       <div class="banner" role="status">Reconnecting…</div>
     {/if}

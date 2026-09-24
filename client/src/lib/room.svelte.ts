@@ -11,6 +11,7 @@ import {
 import { prepareFiles, type IngestRequest, type PreparedFile } from "./ingest/drop.js";
 import { UploadQueue } from "./ingest/upload.js";
 import { LibraryApi } from "./library.js";
+import { roomOutOfView, showNotification } from "./notifications.js";
 import { ReconnectingSocket, roomSocketUrl } from "./net/socket.js";
 import { FilePlayer } from "./players/FilePlayer.js";
 import { YouTubePlayer } from "./players/YouTubePlayer.js";
@@ -58,6 +59,9 @@ export class RoomClient {
   volume = $state(prefs.volume);
   /** The server library, or null until the first status arrives (SPEC §10). */
   libraryStatus = $state.raw<LibraryStatus | null>(null);
+  /** Browser notifications this viewer asked for (remembered per browser). */
+  notifySongs = $state(prefs.notifySongs);
+  notifyChat = $state(prefs.notifyChat);
   /** The YouTube embed seems to need a tap before it will play (iOS). */
   youtubeNeedsTap = $state(false);
   muted = $state(prefs.muted);
@@ -77,6 +81,8 @@ export class RoomClient {
   /** itemId → snapshot rev when its upload was queued; see pruneUploads. */
   private readonly uploadRevs = new Map<string, number>();
   private libraryPoll: ReturnType<typeof setTimeout> | null = null;
+  /** The item a "now playing" notification last covered (or that was playing when we joined). */
+  private announcedItemId: string | undefined;
 
   constructor(
     readonly roomId: string,
@@ -157,6 +163,42 @@ export class RoomClient {
     this.muted = !this.muted;
     prefs.muted = this.muted;
     this.applyVolume();
+  }
+
+  setNotify(kind: "songs" | "chat", on: boolean): void {
+    if (kind === "songs") this.notifySongs = prefs.notifySongs = on;
+    else this.notifyChat = prefs.notifyChat = on;
+  }
+
+  /** Notifies when a new track starts, but not for the one playing when we (re)joined. */
+  private announceTrack(snap: RoomSnapshot, joining: boolean): void {
+    const item = snap.playback ? snap.items[snap.currentIndex] : undefined;
+    if (joining) {
+      this.announcedItemId = item?.id;
+      return;
+    }
+    if (!item || snap.playback?.state !== "playing" || item.id === this.announcedItemId) return;
+    this.announcedItemId = item.id;
+    if (!this.notifySongs || !roomOutOfView()) return;
+    void showNotification({
+      title: item.title,
+      body: [item.artist, item.album].filter(Boolean).join(" — ") || "Now playing",
+      tag: `now-playing-${this.roomId}`,
+      icon: item.artUrl,
+    });
+  }
+
+  /** Notifies about chat messages from others that arrive while the room is out of view. */
+  private announceMessages(entries: ActivityEntry[]): void {
+    if (!this.notifyChat || !roomOutOfView()) return;
+    const messages = entries.filter((e) => e.kind === "message" && e.by !== this.name);
+    const latest = messages.at(-1);
+    if (!latest) return;
+    void showNotification({
+      title: messages.length > 1 ? `${latest.by} and others` : latest.by,
+      body: latest.text,
+      tag: `chat-${this.roomId}`,
+    });
   }
 
   // ---- Server library ----
@@ -305,6 +347,7 @@ export class RoomClient {
         if (!this.joinPending && this.snapshot && message.snapshot.rev < this.snapshot.rev) return;
         // Joined, so the room exists: the library endpoints will answer.
         if (this.joinPending) void this.refreshLibraryStatus();
+        this.announceTrack(message.snapshot, this.joinPending);
         this.joinPending = false;
         this.snapshot = message.snapshot;
         this.pruneUploads(message.snapshot);
@@ -326,6 +369,7 @@ export class RoomClient {
         break;
       case "activity":
         // The server sends its whole log on join; replace rather than duplicate.
+        if (!this.activityLogPending) this.announceMessages(message.entries);
         this.activity = this.activityLogPending
           ? message.entries
           : [...this.activity, ...message.entries].slice(-ACTIVITY_LIMIT);

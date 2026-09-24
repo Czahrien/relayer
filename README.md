@@ -26,6 +26,8 @@ listener.)
   tracks fold away as history (clicking one plays it again), and can be cleared.
 - **Room chat,** alongside what's happening in the room. Share a YouTube link in
   chat and anyone can add it to the queue with a click.
+- **Notifications** when a song starts or someone sends a message while you're
+  in another tab (over HTTPS; not on iPhone, where Safari doesn't allow them).
 - **Your music library.** Point the server at a folder of music and rooms can
   search it by song, album, or artist and add whole albums in order.
 - **The details:** cover art, drag-to-reorder (touch too),

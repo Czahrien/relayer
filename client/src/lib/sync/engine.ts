@@ -65,7 +65,7 @@ export class SyncEngine {
         if (id) this.fail(id, message);
       });
       player.onDuration((ms) => {
-        const id = player === this.active ? this.loadedId : null;
+        const id = player === this.active ? (this.loadedId ?? this.loadingId) : null;
         if (id) this.maybeReportDuration(id, ms);
       });
     }

@@ -20,6 +20,12 @@
   const position = $derived(pb && item ? effectivePositionAt(pb, now, item.durationMs) : 0);
   const playing = $derived(pb?.state === "playing");
   const canPrevious = $derived((snap?.items.length ?? 0) > 0);
+  const showVideo = $derived(item?.kind === "youtube" && item.status === "ready");
+
+  let ytHost: HTMLDivElement | undefined = $state();
+  $effect(() => {
+    client.youtubePlayer.attach(ytHost ?? null);
+  });
 
   function toggle() {
     client.send({ type: playing ? "pause" : "play" });
@@ -28,9 +34,12 @@
 
 <section class="now-playing" aria-label="Now playing">
   <div class="art-frame" class:empty={!item}>
-    {#if item}
+    <!-- The embed lives here permanently so the iframe survives track changes.
+         Nothing may be drawn on top of it (YouTube's terms). -->
+    <div class="video" class:shown={showVideo} bind:this={ytHost}></div>
+    {#if item && !showVideo}
       <Art title={item.title} artUrl={item.artUrl} />
-    {:else}
+    {:else if !item}
       <div class="idle-art" aria-hidden="true">
         <div class="groove"></div>
       </div>
@@ -51,6 +60,9 @@
       {/if}
       {#if pb.state === "waiting"}
         <p class="state">Waiting for upload…</p>
+      {/if}
+      {#if showVideo && client.youtubeNeedsTap && pb.state === "playing"}
+        <p class="state hint">Tap the video to start</p>
       {/if}
     </div>
 
@@ -153,6 +165,29 @@
     overflow: hidden;
     background: var(--surface-2);
     box-shadow: var(--art-shadow);
+  }
+
+  .video {
+    position: absolute;
+    inset: 0;
+    visibility: hidden;
+    background: #000;
+  }
+
+  .video.shown {
+    visibility: visible;
+  }
+
+  .video :global(iframe) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  .hint {
+    color: var(--accent);
+    font-weight: 560;
   }
 
   .art-frame.empty {

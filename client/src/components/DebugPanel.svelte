@@ -55,7 +55,7 @@
     position: fixed;
     z-index: 30;
     right: 16px;
-    top: 16px;
+    bottom: 16px;
     width: 280px;
     padding: 12px 14px;
     border-radius: var(--radius);

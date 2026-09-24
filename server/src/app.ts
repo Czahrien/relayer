@@ -65,6 +65,8 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
   // /start. It is a plain form navigation, not fetch, so an auth portal's login
   // redirect works. Everything else (rooms, sockets, media, uploads) stays public.
   app.get("/", async (_request, reply) => reply.redirect("/start"));
+  // For the Docker healthcheck; not logged, so it doesn't fill the logs every 30 s.
+  app.get("/healthz", { logLevel: "silent" }, async () => ({ ok: true }));
   void app.register(async (scope) => {
     scope.addContentTypeParser(
       ["application/x-www-form-urlencoded", "multipart/form-data", "text/plain"],

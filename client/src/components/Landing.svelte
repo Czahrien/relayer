@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SiteFooter from "./SiteFooter.svelte";
   // A plain form POST rather than fetch: the server answers with a redirect to
   // the new room, and an auth portal in front of /start can redirect to login.
   let starting = $state(false);
@@ -21,6 +22,7 @@
     </button>
   </form>
 </main>
+<SiteFooter />
 
 <style>
   main {
@@ -28,7 +30,7 @@
     justify-items: center;
     align-content: center;
     gap: 20px;
-    min-height: 100dvh;
+    min-height: calc(100dvh - 60px);
     padding: 48px var(--gutter);
     text-align: center;
   }

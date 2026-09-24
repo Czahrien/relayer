@@ -3,3 +3,6 @@ dist/
 data/
 *.tsbuildinfo
 .DS_Store
+
+# Local compose settings (e.g. mounting your music library)
+compose.override.yaml

@@ -12,10 +12,11 @@ function setup() {
 }
 
 describe("RoomRegistry", () => {
-  it("creates rooms with nanoid(10) IDs", () => {
+  it("creates rooms with readable names", () => {
     const { registry } = setup();
     const room = registry.create();
-    expect(room.id).toMatch(/^[A-Za-z0-9_-]{10}$/);
+    expect(room.id).toMatch(/^[a-z]+-[a-z]+-[a-z]+-[1-9][0-9]$/);
+    expect(RoomRegistry.isValidId(room.id)).toBe(true);
     expect(registry.get(room.id)).toBe(room);
   });
 

@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      "@listening-room/shared": fileURLToPath(new URL("./shared/src/index.ts", import.meta.url)),
+      "@relayer/shared": fileURLToPath(new URL("./shared/src/index.ts", import.meta.url)),
     },
   },
   test: {

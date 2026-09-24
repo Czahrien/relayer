@@ -7,7 +7,7 @@
     "types": ["node"],
     "noEmit": true,
     "paths": {
-      "@listening-room/shared": ["./shared/src/index.ts"]
+      "@relayer/shared": ["./shared/src/index.ts"]
     }
   },
   "include": ["shared/src/**/*.test.ts", "server/src/**/*.test.ts", "client/src/**/*.test.ts", "vitest.config.ts"]

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { positionAt, type ActivityEntry } from "@listening-room/shared";
+import { positionAt, type ActivityEntry } from "@relayer/shared";
 import { CommandError, Room, UPLOAD_ABANDON_MS, type Actor } from "./room.js";
 import { FakeClock } from "./testing.js";
 

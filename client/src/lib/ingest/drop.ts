@@ -1,6 +1,6 @@
 // Every way of adding things (drop, paste, pickers) produces an IngestRequest.
 
-import { isAudioName, joinedArtist, parseFilename, titleFromFilename } from "@listening-room/shared";
+import { isAudioName, joinedArtist, parseFilename, titleFromFilename } from "@relayer/shared";
 
 export { isAudioName, titleFromFilename };
 

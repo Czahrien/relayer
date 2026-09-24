@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [svelte(), thirdPartyLicenses()],
   resolve: {
     alias: {
-      "@listening-room/shared": fileURLToPath(new URL("../shared/src/index.ts", import.meta.url)),
+      "@relayer/shared": fileURLToPath(new URL("../shared/src/index.ts", import.meta.url)),
     },
   },
   server: {

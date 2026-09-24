@@ -7,7 +7,7 @@
     "types": ["vite/client"],
     "noEmit": true,
     "paths": {
-      "@listening-room/shared": ["../shared/src/index.ts"]
+      "@relayer/shared": ["../shared/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts", "build/**/*.ts"]

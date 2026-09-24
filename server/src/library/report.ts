@@ -119,7 +119,7 @@ export async function libraryReport(root: string, { dataDir, log }: ReportOption
   md.push(
     "# Music library notes",
     "",
-    `From a scan of ${code(root)} by Listening Room on ${new Date().toISOString().slice(0, 10)}. The app works around most of these, but fixing them in the files helps every player. A tagger such as MusicBrainz Picard or beets can fix most tag problems in bulk.`,
+    `From a scan of ${code(root)} by Relayer on ${new Date().toISOString().slice(0, 10)}. The app works around most of these, but fixing them in the files helps every player. A tagger such as MusicBrainz Picard or beets can fix most tag problems in bulk.`,
     "",
     "## Summary",
     "",

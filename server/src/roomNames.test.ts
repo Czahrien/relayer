@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ROOM_ID_PATTERN } from "@listening-room/shared";
+import { ROOM_ID_PATTERN } from "@relayer/shared";
 import { generateRoomName, MOODS, NOUNS, TONES } from "./roomNames.js";
 
 describe("generateRoomName", () => {

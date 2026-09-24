@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
-import type { ClientMessage, ServerMessage } from "@listening-room/shared";
+import type { ClientMessage, ServerMessage } from "@relayer/shared";
 import type { Library } from "./library/library.js";
 import type { MediaStore } from "./media.js";
 import { CommandError, type Actor, type Room } from "./room.js";

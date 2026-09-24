@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { effectivePositionAt, youtubeWatchUrl } from "@listening-room/shared";
+  import { effectivePositionAt, youtubeWatchUrl } from "@relayer/shared";
   import type { RoomClient } from "../lib/room.svelte.js";
   import Art from "./Art.svelte";
   import Icon from "./Icon.svelte";

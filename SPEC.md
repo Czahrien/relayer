@@ -1,6 +1,6 @@
-# Listening Room: Spec
+# Relayer: Spec
 
-*(Working name.)* This is a small self-hosted web app. Someone starts a room and shares its link. Anyone who opens the link lands in the same room, where they build a shared queue by dragging in audio files, whole album folders, or YouTube links, and everyone hears the same thing at the same moment.
+*(Named after the 1974 Yes album: the server relays one shared timeline to every listener.)* This is a small self-hosted web app. Someone starts a room and shares its link. Anyone who opens the link lands in the same room, where they build a shared queue by dragging in audio files, whole album folders, or YouTube links, and everyone hears the same thing at the same moment.
 
 This document records the decisions already made and the reasons behind them, so implementation stays consistent. Anything marked **Stretch** is out of scope for now. If something here turns out to be wrong or impractical during implementation, flag it rather than silently working around it.
 
@@ -676,7 +676,7 @@ interface LibrarySource {
 
 ```yaml
 services:
-  listening-room:
+  relayer:
     environment:
       LIBRARY_DIR: /music
     volumes:
@@ -775,7 +775,7 @@ Don't add features beyond this spec without asking first.
 - **Docker.** A multi-stage `Dockerfile` on `node:22-alpine`:
   - The final image holds the compiled app plus only the server's production dependencies, copying the whole install tree, because npm nests some packages under a workspace.
   - It runs as the non-root `node` user, with a healthcheck on `/` and a `/data` volume for uploads.
-  - `compose.yaml` builds the image locally as `listening-room:local`. After release, it will pull a published image from GHCR instead.
+  - `compose.yaml` builds the image locally as `relayer:local`. After release, it will pull a published image from GHCR instead.
 - **Reverse proxy.** Behind a proxy, forward WebSocket upgrades (Caddy's `reverse_proxy` does this by default). For nginx:
 
   ```nginx

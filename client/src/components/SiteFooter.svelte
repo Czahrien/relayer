@@ -1,7 +1,7 @@
 <script lang="ts"></script>
 
 <footer>
-  <a href="https://github.com/czahrien/listening-room">Listening Room</a> is free software under the MIT
+  <a href="https://github.com/czahrien/relayer">Relayer</a> is free software under the MIT
   License ·
   <a href="/third-party-licenses.txt">Third-party licenses</a>
 </footer>

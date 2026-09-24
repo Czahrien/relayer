@@ -4,7 +4,7 @@ import type {
   LibrarySearchResult,
   LibraryStatus,
   LibraryTrackInfo,
-} from "@listening-room/shared";
+} from "@relayer/shared";
 
 export interface AlbumDetail {
   album: LibraryAlbumInfo;

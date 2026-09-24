@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { parseYouTubeUrl, type LibrarySearchResult } from "@listening-room/shared";
+  import { parseYouTubeUrl, type LibrarySearchResult } from "@relayer/shared";
   import { extractLinks } from "../lib/ingest/drop.js";
   import type { RoomClient } from "../lib/room.svelte.js";
   import Icon from "./Icon.svelte";

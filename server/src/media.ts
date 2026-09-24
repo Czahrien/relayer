@@ -4,7 +4,7 @@ import path from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { Readable } from "node:stream";
-import { joinedArtist } from "@listening-room/shared";
+import { joinedArtist } from "@relayer/shared";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { parseFile, selectCover, type IFormat } from "music-metadata";
 import type { LibrarySource } from "./library/source.js";

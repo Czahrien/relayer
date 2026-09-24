@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatTime, positionAt, youtubeWatchUrl, type QueueItem } from "@listening-room/shared";
+  import { formatTime, positionAt, youtubeWatchUrl, type QueueItem } from "@relayer/shared";
   import { copyText } from "../lib/clipboard.js";
   import type { RoomClient } from "../lib/room.svelte.js";
   import { toast } from "../lib/toasts.svelte.js";

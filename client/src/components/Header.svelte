@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ListenerHealth, Listener } from "@listening-room/shared";
+  import type { ListenerHealth, Listener } from "@relayer/shared";
   import { tick } from "svelte";
   import Icon from "./Icon.svelte";
 

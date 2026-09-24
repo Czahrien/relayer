@@ -1,5 +1,5 @@
 {
-  "name": "listening-room",
+  "name": "relayer",
   "private": true,
   "license": "MIT",
   "type": "module",

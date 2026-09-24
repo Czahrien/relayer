@@ -5,7 +5,7 @@ import {
   type ClientMessage,
   type FileDescriptor,
   type ListenerSyncState,
-} from "@listening-room/shared";
+} from "@relayer/shared";
 import { CommandError } from "./room.js";
 
 const MAX_FILES_PER_BATCH = 2000;

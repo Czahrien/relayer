@@ -65,8 +65,8 @@ export function thirdPartyLicenses(fileName = "third-party-licenses.txt"): Plugi
       if (missing.length > 0) this.warn(`No license file found for: ${missing.join(", ")}`);
 
       const header =
-        "Listening Room's web client includes the following third-party software.\n" +
-        "Listening Room itself is released under the MIT License (see LICENSE).\n";
+        "Relayer's web client includes the following third-party software.\n" +
+        "Relayer itself is released under the MIT License (see LICENSE).\n";
       const body = notices
         .map((n) => `${"=".repeat(72)}\n${n.name}@${n.version} (${n.license})\n${"=".repeat(72)}\n\n${n.text ?? `License: ${n.license}`}\n`)
         .join("\n");

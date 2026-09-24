@@ -1,4 +1,4 @@
-import { ROOM_ID_PATTERN } from "@listening-room/shared";
+import { ROOM_ID_PATTERN } from "@relayer/shared";
 import { Room, systemClock, type Clock, type RoomHooks } from "./room.js";
 import { generateRoomName } from "./roomNames.js";
 

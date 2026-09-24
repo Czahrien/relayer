@@ -45,13 +45,36 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
 
   await app.register(fastifyWebsocket, { options: { maxPayload: 1024 * 1024 } });
 
-  app.post("/api/rooms", async () => ({ roomId: registry.create().id }));
+  // Room creation lives entirely under /start so a proxy can put it behind
+  // authentication: GET /start is the start page, and its form POSTs back to
+  // /start. It is a plain form navigation, not fetch, so an auth portal's login
+  // redirect works. Everything else (rooms, sockets, media, uploads) stays public.
+  app.get("/", async (_request, reply) => reply.redirect("/start"));
+  void app.register(async (scope) => {
+    scope.addContentTypeParser(
+      ["application/x-www-form-urlencoded", "multipart/form-data", "text/plain"],
+      { parseAs: "string", bodyLimit: 1024 },
+      (_request, _body, done) => done(null, {}),
+    );
+    scope.post("/start", async (_request, reply) => reply.redirect(`/r/${registry.create().id}`, 303));
+  });
+
+  /** Lets the room page say "not found" before asking for a name. */
+  app.get<{ Params: { roomId: string } }>("/api/rooms/:roomId", async (request, reply) => {
+    const { roomId } = request.params;
+    const joinable = RoomRegistry.isValidId(roomId) && (registry.has(roomId) || config.createRoomOnJoin);
+    return joinable ? { roomId } : reply.code(404).send({ error: "This room doesn't exist." });
+  });
+
   registerMediaRoutes(app, registry, media, { maxUploadBytes: config.maxUploadBytes });
-  registerWebSocket(app, registry, hub, options.youtube ?? createYoutubeResolver());
+  registerWebSocket(app, registry, hub, options.youtube ?? createYoutubeResolver(), {
+    createRoomOnJoin: config.createRoomOnJoin,
+  });
 
   if (options.serveClient && existsSync(path.join(clientDist, "index.html"))) {
-    await app.register(fastifyStatic, { root: clientDist, wildcard: false });
-    // Client-side routes (/r/:roomId) fall back to the single-page app.
+    // `index: false` leaves "/" to the redirect above.
+    await app.register(fastifyStatic, { root: clientDist, wildcard: false, index: false });
+    // Client-side routes (/start, /r/:roomId) fall back to the single-page app.
     app.setNotFoundHandler((request, reply) => {
       const url = request.raw.url ?? "";
       if (request.method !== "GET" || /^\/(api|media|ws)(\/|$)/.test(url)) {

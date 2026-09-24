@@ -14,6 +14,8 @@ export default defineConfig({
   server: {
     host: true,
     proxy: {
+      // The start page is served by Vite; only its form POST goes to the server.
+      "/start": { target: server, bypass: (req) => (req.method === "POST" ? undefined : req.url) },
       "/api": server,
       "/media": server,
       "/ws": { target: server, ws: true },

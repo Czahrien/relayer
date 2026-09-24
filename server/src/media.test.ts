@@ -34,7 +34,7 @@ describe("media routes", () => {
   beforeEach(async () => {
     dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "lr-media-"));
     ctx = await buildApp(
-      { port: 0, dataDir, maxUploadBytes: 64 * 1024, roomIdleTtlMs: 60_000 },
+      { port: 0, dataDir, maxUploadBytes: 64 * 1024, roomIdleTtlMs: 60_000, createRoomOnJoin: true },
       { youtube: async () => ({ youtubeId: "x", title: "x" }) },
     );
   });
@@ -142,13 +142,6 @@ describe("media routes", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(await fs.readdir(path.join(dataDir, "rooms", "room1"))).toEqual([]);
     expect((await ctx.app.inject({ method: "GET", url: `/media/room1/${itemId}` })).statusCode).toBe(404);
-  });
-
-  it("creates rooms over HTTP", async () => {
-    const res = await ctx.app.inject({ method: "POST", url: "/api/rooms" });
-    const { roomId } = res.json<{ roomId: string }>();
-    expect(roomId).toMatch(/^[A-Za-z0-9_-]{10}$/);
-    expect(ctx.registry.has(roomId)).toBe(true);
   });
 });
 

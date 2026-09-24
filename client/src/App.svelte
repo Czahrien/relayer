@@ -5,11 +5,13 @@
 
   let path = $state(location.pathname);
   const roomId = $derived(/^\/r\/([A-Za-z0-9_-]{1,64})\/?$/.exec(path)?.[1] ?? null);
+  const isStart = $derived(/^\/start\/?$/.test(path));
 
-  function navigate(to: string) {
-    history.pushState(null, "", to);
-    path = location.pathname;
-  }
+  // Anything else goes to the start page with a full navigation (not
+  // pushState), so a proxy guarding /start gets to see the request.
+  $effect(() => {
+    if (!roomId && !isStart) location.replace("/start");
+  });
 </script>
 
 <svelte:window onpopstate={() => (path = location.pathname)} />
@@ -18,7 +20,7 @@
   {#key roomId}
     <RoomPage {roomId} />
   {/key}
-{:else}
-  <Landing {navigate} />
+{:else if isStart}
+  <Landing />
 {/if}
 <Toasts />

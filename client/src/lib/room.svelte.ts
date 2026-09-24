@@ -18,6 +18,8 @@ import { SyncEngine } from "./sync/engine.js";
 import { toast } from "./toasts.svelte.js";
 
 const ACTIVITY_LIMIT = 50;
+/** Matches the server's close code for an unknown room. */
+const ROOM_NOT_FOUND_CLOSE = 4404;
 const ACCEPT_TIMEOUT_MS = 20_000;
 
 type Command = Exclude<ClientMessage, { type: "hello" | "ping" | "status" | "addFiles" }>;
@@ -30,6 +32,8 @@ export class RoomClient {
   connected = $state(false);
   /** False until the first connection opens, so the banner doesn't flash on join. */
   hasConnected = $state(false);
+  /** The server says this room doesn't exist (e.g. it expired or the server restarted). */
+  missing = $state(false);
   /** itemId → upload fraction, for this client's own uploads. */
   uploadProgress = $state.raw<Record<string, number>>({});
   volume = $state(prefs.volume);
@@ -58,7 +62,7 @@ export class RoomClient {
   ) {
     this.socket = new ReconnectingSocket(roomSocketUrl(roomId));
     this.socket.onOpen = () => this.handleOpen();
-    this.socket.onClose = () => this.handleClose();
+    this.socket.onClose = (code) => this.handleClose(code);
     this.socket.onMessage = (message) => this.handleMessage(message);
 
     this.clock = new ClockSync((t0) => this.socket.send({ type: "ping", t0 }));
@@ -232,10 +236,18 @@ export class RoomClient {
     this.clock.start();
   }
 
-  private handleClose(): void {
+  private handleClose(code: number): boolean {
+    if (code === ROOM_NOT_FOUND_CLOSE) {
+      this.missing = true;
+      this.connected = false;
+      this.clock.stop();
+      this.engine.stop();
+      return false;
+    }
     // Keep playing from the last known timeline; the clock offset stays valid.
     this.connected = false;
     this.clock.stop();
+    return true;
   }
 
   private handleMessage(message: ServerMessage): void {

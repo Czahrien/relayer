@@ -60,7 +60,7 @@ export class FilePlayer implements Player {
   private active: 0 | 1 = 0;
   private loading: string | null = null;
   private endedCb = () => {};
-  private errorCb = (_message: string, _recoverable: boolean) => {};
+  private errorCb = (_error: Error) => {};
   private durationCb = (_ms: number) => {};
 
   constructor() {
@@ -169,7 +169,7 @@ export class FilePlayer implements Player {
     this.endedCb = cb;
   }
 
-  onError(cb: (message: string, recoverable: boolean) => void): void {
+  onError(cb: (error: Error) => void): void {
     this.errorCb = cb;
   }
 
@@ -208,9 +208,10 @@ export class FilePlayer implements Player {
       this.itemIds[index] = null;
       // Failures during load() are reported through its rejection instead.
       if (!wasActive || this.loading === itemId) return;
-      void isRecoverable(code, el.src).then((recoverable) =>
-        this.errorCb(MEDIA_ERRORS[code ?? 0] ?? "The file couldn't be played.", recoverable),
-      );
+      void isRecoverable(code, el.src).then((recoverable) => {
+        const message = MEDIA_ERRORS[code ?? 0] ?? "The file couldn't be played.";
+        this.errorCb(recoverable ? new RecoverableError(message) : new Error(message));
+      });
     });
     el.addEventListener("durationchange", () => {
       if (isActive() && Number.isFinite(el.duration) && el.duration > 0) this.durationCb(el.duration * 1000);

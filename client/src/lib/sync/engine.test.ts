@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { positionAt, type ClientMessage, type QueueItem, type RoomSnapshot } from "@relayer/shared";
 import type { FilePlayer } from "../players/FilePlayer.js";
+import { LocalError } from "../players/Player.js";
 import { SyncEngine, type CorrectionMode } from "./engine.js";
 
 const now = () => Date.now();
@@ -16,7 +17,7 @@ class FakePlayer {
   rateChanges = 0;
   private pos = 0;
   private at = now();
-  private playing = false;
+  playing = false;
   private rate = 1;
   private readyAt = 0;
 
@@ -79,8 +80,10 @@ class FakePlayer {
   isEnded() {
     return false;
   }
+  /** Set to make load() fail. */
+  loadError: Error | null = null;
   load() {
-    return Promise.resolve();
+    return this.loadError ? Promise.reject(this.loadError) : Promise.resolve();
   }
   preload() {}
   setVolume() {}
@@ -121,7 +124,9 @@ function run(opts: {
       : { itemId: "i1", state: "playing", anchorPosMs: 0, anchorTime: now() + 1000 },
   };
   const sent: ClientMessage[] = [];
+  const blocked: string[] = [];
   const engine = new SyncEngine({
+    onBlockedHere: (itemId) => blocked.push(itemId),
     snapshot: () => snapshot,
     serverNow: now,
     clockSynced: () => true,
@@ -143,7 +148,7 @@ function run(opts: {
   };
   /** Where the room's timeline is anchored; after a pause, where it paused. */
   const anchorPos = () => snapshot.playback!.anchorPosMs;
-  return { player, engine, drift, resumeAt, pause, anchorPos };
+  return { player, engine, drift, resumeAt, pause, anchorPos, sent, blocked };
 }
 
 describe("SyncEngine", () => {
@@ -281,6 +286,27 @@ describe("SyncEngine", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     // 120 ticks; nudging should settle rather than retune continuously.
     expect(player.rateChanges).toBeLessThan(20);
+    engine.stop();
+  });
+
+  it("sits out an item that won't play here, reporting it as local once", async () => {
+    const { player, engine, sent, blocked } = run({ seekLatencyMs: 30, startLatencyMs: 30 });
+    player.loadError = new LocalError("refused");
+    engine.start();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sent.filter((m) => m.type === "itemError")).toEqual([{ type: "itemError", itemId: "i1", message: "refused", local: true }]);
+    expect(blocked).toEqual(["i1"]);
+    expect(player.playing).toBe(false);
+    expect(engine.stats.state).toBe("blocked");
+    engine.stop();
+  });
+
+  it("reports other failures to the room without the local flag", async () => {
+    const { player, engine, sent } = run({ seekLatencyMs: 30, startLatencyMs: 30 });
+    player.loadError = new Error("can't decode");
+    engine.start();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sent.filter((m) => m.type === "itemError")).toEqual([{ type: "itemError", itemId: "i1", message: "can't decode" }]);
     engine.stop();
   });
 });

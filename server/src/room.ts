@@ -97,6 +97,8 @@ export class Room {
   /** itemId → clientId of the uploader, for items still uploading. */
   private readonly uploaders = new Map<string, string>();
   private readonly abandonTimers = new Map<string, unknown>();
+  /** itemId → the listeners an item failed for locally, and what they saw (`itemError.local`). */
+  private readonly localFailures = new Map<string, { message: string; reporters: Set<string> }>();
   private endTimer: unknown = null;
   /** Server time when the last listener left, or null while anyone is here. */
   emptySince: number | null;
@@ -163,6 +165,13 @@ export class Room {
     if (!listener) return;
     if (--listener.connections > 0) return;
     this.listeners.delete(clientId);
+    // Everyone left may now be someone the current item already failed for.
+    const current = this.current();
+    const failure = current && this.localFailures.get(current.id);
+    if (current?.status === "ready" && failure && this.listeners.size > 0 && this.failedForEveryone(current.id)) {
+      this.markError(current, failure.message);
+      this.log("", `couldn't play “${current.title}”: ${failure.message}`);
+    }
     if (this.listeners.size === 0) this.emptySince = this.clock.now();
     if ([...this.uploaders.values()].includes(clientId)) {
       this.abandonTimers.set(
@@ -380,6 +389,7 @@ export class Room {
     if (index < this.currentIndex) this.currentIndex--;
     if (wasCurrent) this.startAt(this.currentIndex);
     this.uploaders.delete(itemId);
+    this.localFailures.delete(item!.id);
     this.hooks.onItemsRemoved?.([item!]);
     this.log(actor.name, `removed “${item!.title}”`);
     this.commit();
@@ -392,6 +402,7 @@ export class Room {
     const removed = this.items.splice(0, count);
     this.currentIndex -= count;
     for (const item of removed) this.uploaders.delete(item.id);
+    for (const gone of removed) this.localFailures.delete(gone.id);
     this.hooks.onItemsRemoved?.(removed);
     this.log(actor.name, `cleared ${count} played ${count === 1 ? "track" : "tracks"}`);
     this.commit();
@@ -409,6 +420,7 @@ export class Room {
     this.currentIndex = 0;
     this.playback = null;
     this.uploaders.clear();
+    for (const gone of removed) this.localFailures.delete(gone.id);
     this.hooks.onItemsRemoved?.(removed);
     this.log(actor.name, "cleared the queue");
     this.commit();
@@ -436,9 +448,20 @@ export class Room {
     this.commit();
   }
 
-  itemError(itemId: string, message: string): void {
+  /**
+   * A player couldn't play the item. A failure `reporter` saw locally (see
+   * `itemError.local`) only counts once every listener has reported it, so one
+   * listener's browser can't skip the item for the whole room.
+   */
+  itemError(itemId: string, message: string, reporter?: string): void {
     const item = this.getItem(itemId);
     if (!item || item.status !== "ready") return;
+    if (reporter !== undefined) {
+      const failure = this.localFailures.get(itemId) ?? { message, reporters: new Set<string>() };
+      failure.reporters.add(reporter);
+      this.localFailures.set(itemId, failure);
+      if (!this.failedForEveryone(itemId)) return;
+    }
     this.markError(item, message);
     this.log("", `couldn't play “${item.title}”: ${message}`);
     this.commit();
@@ -545,7 +568,13 @@ export class Room {
     return true;
   }
 
+  private failedForEveryone(itemId: string): boolean {
+    const reporters = this.localFailures.get(itemId)?.reporters;
+    return !!reporters && [...this.listeners.keys()].every((id) => reporters.has(id));
+  }
+
   private markError(item: QueueItem, message: string): void {
+    this.localFailures.delete(item.id);
     item.status = "error";
     item.error = message;
     if (this.current()?.id === item.id) this.startAt(this.currentIndex);

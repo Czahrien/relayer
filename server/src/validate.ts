@@ -11,7 +11,7 @@ import { CommandError } from "./room.js";
 
 const MAX_FILES_PER_BATCH = 2000;
 const MAX_TEXT = 300;
-const SYNC_STATES: ListenerSyncState[] = ["playing", "paused", "buffering", "loading", "idle"];
+const SYNC_STATES: ListenerSyncState[] = ["playing", "paused", "buffering", "loading", "idle", "blocked"];
 
 type Obj = Record<string, unknown>;
 
@@ -143,6 +143,7 @@ export function parseClientMessage(raw: string): ClientMessage {
         type: "itemError",
         itemId: str(o, "itemId", 64),
         message: cleanText(str(o, "message", 1000), 200),
+        ...(o.local === true ? { local: true } : {}),
       };
     case "status": {
       const state = o.state as ListenerSyncState;

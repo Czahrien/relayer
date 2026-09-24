@@ -1,5 +1,5 @@
 import { EMBED_BLOCKED_MESSAGE, type QueueItem } from "@relayer/shared";
-import { RecoverableError, type Player } from "./Player.js";
+import { LocalError, RecoverableError, type Player } from "./Player.js";
 
 // The slice of the IFrame Player API we use.
 interface YTPlayer {
@@ -50,7 +50,11 @@ const ERRORS: Record<number, string> = {
   100: "This video was removed or is private.",
   101: EMBED_BLOCKED_MESSAGE,
   150: EMBED_BLOCKED_MESSAGE,
+  153: "YouTube's player couldn't tell which site it's on (error 153). Something is removing the page's referrer.",
 };
+
+/** Refusals that depend on the embedding page, so they may be this browser's alone. */
+const LOCAL_ERRORS = new Set([101, 150, 153]);
 
 let apiPromise: Promise<YTNamespace> | null = null;
 
@@ -96,7 +100,7 @@ export class YouTubePlayer implements Player {
   private pendingLoad: { resolve: () => void; reject: (err: Error) => void } | null = null;
   private tapTimer: ReturnType<typeof setTimeout> | null = null;
   private endedCb = () => {};
-  private errorCb = (_message: string, _recoverable: boolean) => {};
+  private errorCb = (_error: Error) => {};
   private durationCb = (_ms: number) => {};
 
   /** Called when programmatic play seems blocked (iOS wants a tap on the video). */
@@ -222,7 +226,7 @@ export class YouTubePlayer implements Player {
     this.endedCb = cb;
   }
 
-  onError(cb: (message: string, recoverable: boolean) => void): void {
+  onError(cb: (error: Error) => void): void {
     this.errorCb = cb;
   }
 
@@ -263,11 +267,12 @@ export class YouTubePlayer implements Player {
 
   private handleError(code: number): void {
     const message = ERRORS[code] ?? `YouTube couldn't play this video (error ${code}).`;
+    const error = LOCAL_ERRORS.has(code) ? new LocalError(message) : new Error(message);
     if (this.pendingLoad) {
-      this.pendingLoad.reject(new Error(message));
+      this.pendingLoad.reject(error);
       this.pendingLoad = null;
     } else {
-      this.errorCb(message, false);
+      this.errorCb(error);
     }
   }
 

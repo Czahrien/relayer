@@ -221,7 +221,7 @@ The WebSocket lives at `/ws/:roomId`. Messages are JSON objects of the form `{ t
 | `chat` | `text` | Post a chat message (up to 500 characters, whitespace collapsed). Each connection may send bursts of 5, then one every 2 s; beyond that the server replies with an `error`. |
 | `reportDuration` | `itemId, durationMs` | Accepted only if the item has no `durationMs` yet. |
 | `ended` | `itemId` | The client's player finished the item. See §6.4. |
-| `itemError` | `itemId, message` | The item itself can't be played (not a local network problem, §6.7). Mark it `error`, and skip it if it is current. |
+| `itemError` | `itemId, message, local?` | The item itself can't be played (not a local network problem, §6.7). Mark it `error`, and skip it if it is current. With `local: true` (a YouTube refusal that may be this browser's alone, §6.7), record the reporter and only mark the item once every listener in the room has reported it, re-checking when a listener leaves. |
 | `status` | `driftMs, state` | Client sync health, sent roughly every 3 s. |
 
 ### Server → client
@@ -420,7 +420,8 @@ On iOS, an audio element only plays programmatically if it was first played insi
 - **Visibility.** The video must remain visible, because YouTube's terms require a player of at least 200×200 px. It renders in the now-playing art area. Do not overlay anything on top of it.
 - **Local interaction.** If a user interacts with the embed directly (for example, clicking it pauses the video), the sync engine simply re-applies the room state on its next tick.
 - **Duration.** Report the duration via `getDuration()` once it is greater than 0.
-- **Errors.** Error codes 101 and 150 (embedding disabled) and 100 (removed or private) trigger `itemError`. Treat any other error code the same way.
+- **Errors.** Error code 100 (removed or private) triggers `itemError`, as does any unknown code.
+- **Refusals are per listener.** Codes 101 and 150 ("embedding disabled") and 153 (no referrer) depend on the page embedding the player, not just the video. YouTube refuses many videos, music especially, to a page opened by IP address (`http://10.0.0.5:3000`) while playing them on a hostname, and refuses everything when a browser extension or a `no-referrer` policy strips the referrer. So these raise a `LocalError`: the engine sits the item out (paused, sync state `blocked`), sends `itemError` with `local: true` once, and toasts why, with a hint when the page was opened by IP address. The room plays on for everyone else and skips the item only when it has failed for every listener.
 - **Ads.** Ads may play on some clients. The seek threshold and cooldown keep the engine from thrashing during an ad, and it resyncs once the ad ends.
 - **Known risk on iOS.** The embed sometimes needs a first tap on the video itself before programmatic play works. If `playVideo()` doesn't take effect within 2.5 s, show a "Tap the video to start" hint.
 
@@ -814,7 +815,7 @@ Search YouTube from the same search box, in a YouTube tab, and add results like 
   - `snippet.liveBroadcastContent` (live streams have no fixed timeline, so drop them).
 
   Region restrictions aren't labeled: the server can't know where listeners are.
-- **Embeddability is best-effort.** YouTube documents that embeddable videos "may still be blocked from playback in embedded players due to platform policies or third-party claims", which is typical of official music uploads. The existing runtime handling (error 101/150 → `itemError` with the embed-blocked message) stays.
+- **Embeddability is best-effort.** YouTube documents that embeddable videos "may still be blocked from playback in embedded players due to platform policies or third-party claims", which is typical of official music uploads. The runtime handling (errors 101/150 → a per-listener refusal, §6.7) stays.
 - **Playlists.** `playlists.list` for the title (a YouTube Music album's "Album - " prefix is dropped), then `playlistItems.list` 50 at a time, up to 500 videos, and `videos.list` for their details. Playable videos are added in order as one batch, with the playlist title as their album; the rest are left out, and the adding client gets a `notice` message ("Left out 2 videos from that playlist that can't play here."), shown as an info toast. Missing or private playlists, and mixes (`RD…` lists, which the API can't read), get plain-language errors.
 - **Quota.** The default is 100 `search.list` calls per day per Google Cloud project, plus 10,000 units per day for other calls, where `videos.list` costs 1 unit. So:
   - YouTube search runs on Enter, not as you type;

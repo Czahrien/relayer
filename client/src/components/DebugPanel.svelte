@@ -9,6 +9,7 @@
   }
 
   let rows = $state<Row[]>([]);
+  let log = $state<string[]>([]);
 
   function ms(value: number | null | undefined, digits = 0): string {
     return value === null || value === undefined ? "—" : `${value.toFixed(digits)} ms`;
@@ -22,17 +23,22 @@
       { label: "Best RTT", value: ms(client.clock.bestRtt, 1) },
       { label: "Drift", value: stats.driftMs === null ? "—" : `${stats.driftMs >= 0 ? "+" : ""}${stats.driftMs.toFixed(0)} ms` },
       { label: "Rate", value: stats.rate.toFixed(4) },
+      { label: "Correction", value: stats.mode === "seek" ? "seek only" : "rate nudging" },
       { label: "Seek lead", value: ms(stats.seekLeadMs) },
+      { label: "Start lead", value: ms(stats.startLeadMs) },
       { label: "Player", value: `${player?.kind ?? "none"} · ${stats.state}${player?.isBuffering() ? " · buffering" : ""}` },
       { label: "Position", value: player ? ms(player.positionMs()) : "—" },
       { label: "Rev", value: String(client.snapshot?.rev ?? "—") },
-      { label: "Last action", value: stats.lastAction || "—" },
     ];
   }
 
   $effect(() => {
-    rows = sample();
-    const timer = setInterval(() => (rows = sample()), 250);
+    const update = () => {
+      rows = sample();
+      log = [...client.engine.stats.log].reverse();
+    };
+    update();
+    const timer = setInterval(update, 250);
     return () => clearInterval(timer);
   });
 </script>
@@ -48,6 +54,13 @@
       <dd>{row.value}</dd>
     {/each}
   </dl>
+  {#if log.length > 0}
+    <ol class="log" aria-label="Recent sync actions, newest first">
+      {#each log as line, i (i)}
+        <li>{line}</li>
+      {/each}
+    </ol>
+  {/if}
   <p class="hint">Press D to toggle</p>
 </aside>
 
@@ -104,6 +117,15 @@
     margin: 0;
     text-align: right;
     font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .log {
+    margin: 8px 0 0;
+    padding: 8px 0 0;
+    border-top: 1px solid #3a3631;
+    color: #cfc7bb;
+    list-style: none;
     overflow-wrap: anywhere;
   }
 

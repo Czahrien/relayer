@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+data
+.git
+.gitignore
+.dockerignore
+Dockerfile
+compose.yaml
+*.md

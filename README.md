@@ -36,6 +36,20 @@ npm run build && npm start   # one process, one port
 | `MAX_UPLOAD_MB` | `300` | Maximum size of a single uploaded file. |
 | `ROOM_IDLE_TTL_MIN` | `60` | Minutes an empty room survives before it and its files are deleted. |
 
+### Docker
+
+```sh
+docker compose up -d --build   # builds the image locally and starts it on :3000
+```
+
+`compose.yaml` builds from this repo and tags the image `listening-room:local`.
+Set `HOST_PORT`, `MAX_UPLOAD_MB`, or `ROOM_IDLE_TTL_MIN` in the environment or a
+`.env` file next to it. Uploaded media lives in the `media` volume at `/data`; it
+only holds files for live rooms and is cleared when the container starts.
+
+Once images are published to GHCR, replace `build: .` and `image:` in
+`compose.yaml` with the published image (`ghcr.io/OWNER/listening-room:TAG`).
+
 Behind a reverse proxy, forward WebSocket upgrades and raise the upload limit.
 For nginx:
 

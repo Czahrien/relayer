@@ -71,6 +71,14 @@ beforeEach(async () => {
   // Art from a folder image instead of an embedded cover.
   await put("Folder/Art Album/01.wav", wav({ title: "Framed", artist: "Painter", album: "Art Album" }));
   await put("Folder/Art Album/cover.png", TINY_PNG);
+  // Multi-disc sets named in the album tag: one folder, or one folder per disc.
+  await put("Camel/Moonmadness/01.wav", wav({ title: "Aristillus", artist: "Camel", album: "Moonmadness - CD 1", track: "1" }));
+  await put("Camel/Moonmadness/02.wav", wav({ title: "Bonus", artist: "Camel", album: "Moonmadness - CD 2", track: "1" }));
+  await put("Aphrodite/666 - CD 2/01.wav", wav({ title: "Loud", artist: "Aphrodite's Child", album: "666 - CD 2", track: "1" }));
+  await put("Aphrodite/666 - CD 1/01.wav", wav({ title: "The System", artist: "Aphrodite's Child", album: "666 - CD 1", track: "1" }));
+  // No title or track tags: both come from the filename.
+  await put("Blue Phantom/Distortions/02 - metamorphosis.wav", wav({ artist: "Blue Phantom", album: "Distortions" }));
+  await put("Blue Phantom/Distortions/01 - diodo.wav", wav({ artist: "Blue Phantom", album: "Distortions" }));
   // Untagged, unplayable, junk, and hidden files.
   await put("Loose/untagged_song.wav", wav({}));
   await put("Loose/adpcm.wav", wav({ title: "Unplayable" }, 2));
@@ -93,9 +101,9 @@ describe("Library scanning", () => {
   it("indexes playable audio and skips everything else", async () => {
     const { library } = newLibrary();
     const result = await library.scan();
-    expect(library.trackCount).toBe(11);
+    expect(library.trackCount).toBe(17);
     // adpcm.wav is unplayable; junk.mp3 is either unreadable or has no playable codec.
-    expect(result.added).toBe(11);
+    expect(result.added).toBe(17);
     expect(result.unplayable + result.unreadable).toBe(2);
     expect(titles(library, "escaped")).toEqual([]);
     expect(titles(library, "hidden")).toEqual([]);
@@ -126,6 +134,34 @@ describe("Library scanning", () => {
 
     expect(library.search("greatest hits").albums.map((a) => a.artist).sort()).toEqual(["P", "Q"]);
     expect(library.search("mix").albums[0]).toMatchObject({ artist: "Various Artists", trackCount: 2 });
+  });
+
+  it("joins discs of a set named in the album tag into one album", async () => {
+    const { library } = newLibrary();
+    await library.scan();
+    const moon = library.search("moonmadness").albums;
+    expect(moon.map((a) => a.title)).toEqual(["Moonmadness"]);
+    const tracks = library.album(moon[0]!.id)!.tracks;
+    expect(tracks.map((t) => [t.discNo, t.trackNo, t.title])).toEqual([
+      [1, 1, "Aristillus"],
+      [2, 1, "Bonus"],
+    ]);
+    expect(tracks[0]!.album).toBe("Moonmadness");
+
+    // Discs in sibling folders ("666 - CD 1", "666 - CD 2") join too.
+    const six = library.search("666").albums;
+    expect(six).toHaveLength(1);
+    expect(library.album(six[0]!.id)!.tracks.map((t) => t.title)).toEqual(["The System", "Loud"]);
+  });
+
+  it("takes titles and track numbers from filenames when tags lack them", async () => {
+    const { library } = newLibrary();
+    await library.scan();
+    const album = library.search("distortions").albums[0]!;
+    expect(library.album(album.id)!.tracks.map((t) => [t.trackNo, t.title])).toEqual([
+      [1, "diodo"],
+      [2, "metamorphosis"],
+    ]);
   });
 
   it("extracts album art from embedded covers or folder images", async () => {
@@ -172,7 +208,7 @@ describe("Library rescans and cache", () => {
     const unchanged = await library.scan();
     expect(source.reads).toEqual([]);
     expect(source.coverReads).toEqual([]);
-    expect(unchanged).toMatchObject({ added: 0, updated: 0, removed: 0, unchanged: 11 });
+    expect(unchanged).toMatchObject({ added: 0, updated: 0, removed: 0, unchanged: 17 });
     // Skipped files are remembered, not re-read, but still counted.
     expect(unchanged.unplayable + unchanged.unreadable).toBe(2);
 
@@ -237,6 +273,48 @@ describe("LocalDirSource", () => {
     const source = new LocalDirSource(root);
     expect(await source.folderArt("Linked/Album/01.wav")).toBeNull();
     expect(await source.folderArt("Folder/Art Album/01.wav")).toMatchObject({ mime: "image/png" });
+  });
+
+  describe("folder art", () => {
+    const art = async (rel: string, files: string[]) => {
+      await put(`${rel}/01.wav`, wav({ title: "T" }));
+      for (const f of files) await put(`${rel}/${f}`, TINY_PNG);
+      const found = await new LocalDirSource(root).folderArt(`${rel}/01.wav`);
+      return found && { mime: found.mime };
+    };
+
+    it("prefers images that name the front", async () => {
+      expect(await art("A1", ["back.jpg", "front.jpg", "inlay.jpg"])).toEqual({ mime: "image/jpeg" });
+      expect(await art("A2", ["Leviathan_-_Leviathan_-_Back.jpg", "Leviathan_-_Leviathan_-_Front.png"])).toEqual({
+        mime: "image/png",
+      });
+    });
+
+    it("uses a lone image beside the tracks", async () => {
+      expect(await art("A3", ["1970-Bloodrock.jpg"])).toEqual({ mime: "image/jpeg" });
+      expect(await art("A4", ["The Desert Sessions I-II.bmp"])).toEqual({ mime: "image/bmp" });
+    });
+
+    it("looks in artwork subfolders for a front", async () => {
+      expect(await art("A5", ["Artwork/back.jpeg", "Artwork/front.jpeg", "Artwork/cd.jpeg"])).toEqual({
+        mime: "image/jpeg",
+      });
+      // A subfolder image that doesn't say it's the front isn't used.
+      expect(await art("A6", ["Scans/scan01.jpg"])).toBeNull();
+    });
+
+    it("looks beside a disc folder for the set's cover", async () => {
+      await put("Set/cover.gif", TINY_PNG);
+      await put("Set/CD1/01.wav", wav({ title: "T" }));
+      expect(await new LocalDirSource(root).folderArt("Set/CD1/01.wav")).toMatchObject({ mime: "image/gif" });
+    });
+
+    it("skips backs, thumbnails, and ambiguous pairs", async () => {
+      expect(await art("B1", ["back.jpg"])).toBeNull();
+      expect(await art("B2", ["thumb.jpg"])).toBeNull();
+      expect(await art("B3", ["AlbumArtSmall.jpg"])).toBeNull();
+      expect(await art("B4", ["A.jpeg", "B.jpeg"])).toBeNull();
+    });
   });
 
   it("serves byte ranges and reports size", async () => {

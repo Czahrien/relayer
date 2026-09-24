@@ -56,7 +56,7 @@ describe("helpers", () => {
   });
 
   it("derives titles from filenames", () => {
-    expect(titleFromFilename("01_Intro.mp3")).toBe("01 Intro");
+    expect(titleFromFilename("01_Intro.mp3")).toBe("Intro");
     expect(titleFromFilename("song.name.flac")).toBe("song.name");
   });
 

@@ -1,6 +1,6 @@
 // Every way of adding things (drop, paste, pickers) produces an IngestRequest.
 
-import { isAudioName, joinedArtist, titleFromFilename } from "@listening-room/shared";
+import { isAudioName, joinedArtist, parseFilename, titleFromFilename } from "@listening-room/shared";
 
 export { isAudioName, titleFromFilename };
 
@@ -131,7 +131,8 @@ export async function prepareFiles(files: IngestFile[]): Promise<PreparedFile[]>
     while (next < files.length) {
       const index = next++;
       const f = files[index]!;
-      const base: PreparedFile = { ...f, title: titleFromFilename(f.file.name) };
+      const fromName = parseFilename(f.file.name);
+      const base: PreparedFile = { ...f, title: fromName.title, trackNo: fromName.trackNo };
       try {
         const { common } = await parseBlob(f.file, { skipCovers: true, duration: false, skipPostHeaders: true });
         prepared[index] = {
@@ -140,7 +141,7 @@ export async function prepareFiles(files: IngestFile[]): Promise<PreparedFile[]>
           artist: (joinedArtist(common) ?? common.albumartist)?.trim() || undefined,
           album: common.album?.trim() || undefined,
           discNo: common.disk.no ?? undefined,
-          trackNo: common.track.no ?? undefined,
+          trackNo: common.track.no ?? base.trackNo,
         };
       } catch {
         prepared[index] = base;

@@ -4,6 +4,7 @@ import path from "node:path";
 import type { Readable } from "node:stream";
 import { parseFile, type IAudioMetadata } from "music-metadata";
 import { isAudioName } from "@listening-room/shared";
+import { isDiscFolder } from "./tags.js";
 
 /** A candidate audio file in a library source. */
 export interface LibraryFile {
@@ -36,8 +37,56 @@ export interface LibrarySource {
   folderArt(filePath: string): Promise<FolderArt | null>;
 }
 
-const FOLDER_ART = /^(cover|folder|front|album)\.(jpe?g|png|webp)$/i;
-const ART_MIME: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+const IMAGE = /\.(jpe?g|png|webp|gif|bmp)$/i;
+const ART_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  bmp: "image/bmp",
+};
+const ART_SUBFOLDER = /^(artwork|art|covers?|scans?|images?|pictures?|pics)$/i;
+const FRONT = /\b(front|cover|folder)\b/;
+const ALBUM_ART = /\balbum ?art/;
+/** Scans that aren't the front cover (Windows' AlbumArtSmall is a thumbnail). */
+const NOT_FRONT = /\b(back|rear|inlay|inside|booklet|tray|obi|cd|disc|label|matrix|spine|thumb|thumbnail|small)\b/;
+
+/**
+ * How likely an image is the front cover: 3 names the front ("cover.jpg",
+ * "Leviathan_-_Front.jpg"), 2 is Windows-style album art, 0 says nothing, and
+ * -1 is some other scan (back, inlay, disc, booklet, thumbnail).
+ */
+function artScore(name: string): number {
+  const words = name
+    .replace(/\.[^.]+$/, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2") // "AlbumArtSmall" → "Album Art Small"
+    .toLowerCase()
+    .replace(/[_\-.()[\]{}]+/g, " ");
+  if (NOT_FRONT.test(words)) return -1;
+  if (FRONT.test(words)) return 3;
+  if (ALBUM_ART.test(words)) return 2;
+  return 0;
+}
+
+async function listImages(dir: string): Promise<string[]> {
+  try {
+    return (await fs.readdir(dir, { withFileTypes: true }))
+      .filter((e) => !e.isDirectory() && IMAGE.test(e.name) && !e.name.startsWith("."))
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+async function listDirs(dir: string): Promise<string[]> {
+  try {
+    return (await fs.readdir(dir, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
 
 /**
  * A library on the local filesystem, typically a read-only Docker bind mount.
@@ -73,24 +122,43 @@ export class LocalDirSource implements LibrarySource {
   }
 
   async folderArt(filePath: string): Promise<FolderArt | null> {
-    const dir = path.dirname(await this.safePath(filePath));
-    let names: string[];
-    try {
-      names = await fs.readdir(dir);
-    } catch {
-      return null;
+    const trackDir = path.dirname(await this.safePath(filePath));
+    // One disc of a set keeps its art next to the set: look in the parent too.
+    const albumDirs = [trackDir];
+    const parent = path.dirname(trackDir);
+    if (isDiscFolder(path.basename(trackDir)) && (await this.isInside(parent))) albumDirs.push(parent);
+
+    const candidates: { file: string; score: number; depth: number }[] = [];
+    for (const dir of albumDirs) {
+      const images = await listImages(dir);
+      const usable = images.filter((name) => artScore(name) >= 0);
+      for (const name of usable) {
+        // A lone image beside the tracks is almost always the cover.
+        const score = Math.max(artScore(name), usable.length === 1 ? 1 : 0);
+        if (score > 0) candidates.push({ file: path.join(dir, name), score, depth: 0 });
+      }
+      // Artwork/, Covers/, Scans/: only images that say they're the front.
+      for (const sub of await listDirs(dir)) {
+        if (!ART_SUBFOLDER.test(sub)) continue;
+        for (const name of await listImages(path.join(dir, sub))) {
+          if (artScore(name) >= 2) candidates.push({ file: path.join(dir, sub, name), score: artScore(name), depth: 1 });
+        }
+      }
     }
-    const name = names.sort().find((n) => FOLDER_ART.test(n));
-    if (!name) return null;
-    let real: string;
-    try {
-      real = await fs.realpath(path.join(dir, name));
-    } catch {
-      return null;
+    candidates.sort((a, b) => b.score - a.score || a.depth - b.depth || a.file.localeCompare(b.file));
+
+    for (const candidate of candidates) {
+      let real: string;
+      try {
+        real = await fs.realpath(candidate.file);
+      } catch {
+        continue;
+      }
+      if (!(await this.isInside(real))) continue; // e.g. cover.jpg symlinked out of the library
+      const ext = candidate.file.slice(candidate.file.lastIndexOf(".") + 1).toLowerCase();
+      return { mime: ART_MIME[ext]!, read: () => fs.readFile(real) };
     }
-    if (!(await this.isInside(real))) return null; // e.g. cover.jpg symlinked out of the library
-    const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
-    return { mime: ART_MIME[ext]!, read: () => fs.readFile(real) };
+    return null;
   }
 
   private async *walk(dir: string, rel: string, seen: Set<string>): AsyncIterable<LibraryFile> {

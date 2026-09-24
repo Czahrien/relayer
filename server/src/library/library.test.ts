@@ -76,9 +76,9 @@ beforeEach(async () => {
   await put("Camel/Moonmadness/02.wav", wav({ title: "Bonus", artist: "Camel", album: "Moonmadness - CD 2", track: "1" }));
   await put("Aphrodite/666 - CD 2/01.wav", wav({ title: "Loud", artist: "Aphrodite's Child", album: "666 - CD 2", track: "1" }));
   await put("Aphrodite/666 - CD 1/01.wav", wav({ title: "The System", artist: "Aphrodite's Child", album: "666 - CD 1", track: "1" }));
-  // No title or track tags: both come from the filename.
-  await put("Blue Phantom/Distortions/02 - metamorphosis.wav", wav({ artist: "Blue Phantom", album: "Distortions" }));
-  await put("Blue Phantom/Distortions/01 - diodo.wav", wav({ artist: "Blue Phantom", album: "Distortions" }));
+  // No title, track, or album tags: they come from the file and folder names.
+  await put("Blue Phantom/(1971) Distortions [MP3 192kbps]/02 - metamorphosis.wav", wav({ artist: "Blue Phantom" }));
+  await put("Blue Phantom/(1971) Distortions [MP3 192kbps]/01 - diodo.wav", wav({ artist: "Blue Phantom" }));
   // Untagged, unplayable, junk, and hidden files.
   await put("Loose/untagged_song.wav", wav({}));
   await put("Loose/adpcm.wav", wav({ title: "Unplayable" }, 2));
@@ -154,7 +154,7 @@ describe("Library scanning", () => {
     expect(library.album(six[0]!.id)!.tracks.map((t) => t.title)).toEqual(["The System", "Loud"]);
   });
 
-  it("takes titles and track numbers from filenames when tags lack them", async () => {
+  it("takes titles, track numbers, and albums from file and folder names when tags lack them", async () => {
     const { library } = newLibrary();
     await library.scan();
     const album = library.search("distortions").albums[0]!;

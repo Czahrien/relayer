@@ -13,7 +13,7 @@ import {
 import { classifyFormat, imageMime } from "../media.js";
 import { indexFields, normalize, parseQuery, rank, type IndexedField } from "./search.js";
 import type { LibraryFile, LibrarySource } from "./source.js";
-import { isDiscFolder, splitDisc } from "./tags.js";
+import { albumFromFolder, isDiscFolder, splitDisc } from "./tags.js";
 
 /** An indexed track. `path`, `size`, and `version` stay on the server. */
 export interface LibraryTrack extends Omit<LibraryTrackInfo, "hasArt"> {
@@ -53,7 +53,7 @@ interface SkippedFile {
 }
 
 /** Bump when indexing changes what's stored, so old caches are rebuilt. */
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 interface CacheFile {
   version: typeof CACHE_VERSION;
@@ -345,9 +345,14 @@ export class Library {
     const { common, format } = meta;
     // Untagged files fall back to the filename, which often carries the track number.
     const fromName = parseFilename(file.path.slice(file.path.lastIndexOf("/") + 1));
-    // "Moonmadness - CD 1" is disc 1 of "Moonmadness".
+    // "Moonmadness - CD 1" is disc 1 of "Moonmadness". Without an album tag,
+    // the folder name stands in for it.
+    const artist = clean(joinedArtist(common));
+    const albumArtist = clean(common.albumartist);
     const albumTag = clean(common.album);
-    const album = albumTag ? splitDisc(albumTag) : undefined;
+    const album: { title?: string; disc?: number } = albumTag
+      ? splitDisc(albumTag)
+      : { title: albumFromFolder(file.path, albumArtist ?? artist) };
     const track: LibraryTrack = {
       id,
       path: file.path,
@@ -355,10 +360,10 @@ export class Library {
       version: file.version,
       mime: verdict.mime,
       title: clean(common.title) ?? fromName.title,
-      artist: clean(joinedArtist(common)),
-      albumArtist: clean(common.albumartist),
-      album: album?.title,
-      discNo: common.disk.no ?? album?.disc,
+      artist,
+      albumArtist,
+      album: album.title,
+      discNo: common.disk.no ?? album.disc,
       trackNo: common.track.no ?? fromName.trackNo,
       year: common.year ?? undefined,
       durationMs: format.duration && Number.isFinite(format.duration) ? Math.round(format.duration * 1000) : undefined,

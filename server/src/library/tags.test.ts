@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isDiscFolder, splitDisc } from "./tags.js";
+import { albumFromFolder, isDiscFolder, splitDisc } from "./tags.js";
 
 describe("splitDisc", () => {
   it.each([
@@ -32,5 +32,29 @@ describe("isDiscFolder", () => {
     ["Discography", false],
   ])("%s → %s", (name, expected) => {
     expect(isDiscFolder(name)).toBe(expected);
+  });
+});
+
+describe("albumFromFolder", () => {
+  it.each([
+    ["Blue Phantom/(1971) Distortions [MP3 192kbps]/01 - diodo.mp3", "Blue Phantom", "Distortions"],
+    ["Uriah Heep/Uriah Heep - Demons And Wizards (1972) [FLAC] {1996 Castle Remaster}/x.flac", "Uriah Heep", "Demons And Wizards"],
+    ["Blue Öyster Cult/1995 - Workshop Of The Telescopes/x.mp3", "Blue Öyster Cult", "Workshop Of The Telescopes"],
+    ["Band/[2001] Record/CD2/x.mp3", "Band", "Record"],
+    ["Beyonce/B'Day/x.mp3", "Beyoncé", "B'Day"],
+    // No artist tag: the parent folder's name is stripped instead.
+    [
+      "Uriah Heep/Uriah Heep - Conquest (1980) [flac] (2003 Expanded DeLuxe Edition)/x.flac",
+      undefined,
+      "Conquest (1980) (2003 Expanded DeLuxe Edition)",
+    ],
+    ["Loose/x.mp3", undefined, undefined],
+    // Not albums.
+    ["Blizaro/Unknown Album/x.mp3", "Blizaro", undefined],
+    ["Beyoncé/x.mp3", "Beyonce", undefined],
+    ["x.mp3", "Someone", undefined],
+    ["Artist/[FLAC]/x.flac", "Artist", undefined],
+  ])("%s", (trackPath, artist, expected) => {
+    expect(albumFromFolder(trackPath, artist)).toBe(expected);
   });
 });

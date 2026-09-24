@@ -1,0 +1,21 @@
+services:
+  listening-room:
+    # Built locally from this repo for now. Once images are published to GHCR,
+    # replace `build:` and this `image:` with the published one, e.g.:
+    #   image: ghcr.io/OWNER/listening-room:latest
+    build: .
+    image: listening-room:local
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    environment:
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-300}
+      ROOM_IDLE_TTL_MIN: ${ROOM_IDLE_TTL_MIN:-60}
+    volumes:
+      # Uploaded media for live rooms. Rooms don't survive a restart, and the
+      # server clears this directory on startup.
+      - media:/data
+
+volumes:
+  media:

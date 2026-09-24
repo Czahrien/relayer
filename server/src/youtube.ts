@@ -1,4 +1,9 @@
-import { parseYouTubeUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@listening-room/shared";
+import {
+  EMBED_BLOCKED_MESSAGE,
+  parseYouTubeUrl,
+  youtubeThumbnailUrl,
+  youtubeWatchUrl,
+} from "@listening-room/shared";
 import { CommandError, type YoutubeItemInfo } from "./room.js";
 import { cleanText } from "./validate.js";
 
@@ -38,7 +43,7 @@ export function createYoutubeResolver(fetchImpl: typeof fetch = fetch): YoutubeR
       return fallback;
     }
     if (response.status === 401 || response.status === 403) {
-      return { ...fallback, error: "This video can't be played outside YouTube." };
+      return { ...fallback, error: EMBED_BLOCKED_MESSAGE };
     }
     if (response.status === 400 || response.status === 404) {
       throw new CommandError("That YouTube video doesn't exist or is private.");

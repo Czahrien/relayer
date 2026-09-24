@@ -44,6 +44,10 @@ export function parseYouTubeUrl(input: string): string | null {
   return id && ID_PATTERN.test(id) ? id : null;
 }
 
+/** Shown when a video's owner has disabled playback in embedded players. */
+export const EMBED_BLOCKED_MESSAGE =
+  "The owner doesn't allow this video on other sites. Try a different upload, such as a lyric video.";
+
 export function youtubeWatchUrl(id: string): string {
   return `https://www.youtube.com/watch?v=${id}`;
 }

@@ -37,7 +37,7 @@ describe("createYoutubeResolver", () => {
 
   it("adds embed-disabled videos as errors", async () => {
     const info = await createYoutubeResolver(stub(401))(URL);
-    expect(info.error).toMatch(/outside YouTube/);
+    expect(info.error).toMatch(/doesn't allow this video on other sites/);
   });
 
   it("falls back when YouTube is unreachable", async () => {

@@ -1,6 +1,6 @@
 // Every way of adding things (drop, paste, pickers) produces an IngestRequest.
 
-import { isAudioName, titleFromFilename } from "@listening-room/shared";
+import { isAudioName, joinedArtist, titleFromFilename } from "@listening-room/shared";
 
 export { isAudioName, titleFromFilename };
 
@@ -137,7 +137,7 @@ export async function prepareFiles(files: IngestFile[]): Promise<PreparedFile[]>
         prepared[index] = {
           ...base,
           title: common.title?.trim() || base.title,
-          artist: (common.artist ?? common.albumartist)?.trim() || undefined,
+          artist: (joinedArtist(common) ?? common.albumartist)?.trim() || undefined,
           album: common.album?.trim() || undefined,
           discNo: common.disk.no ?? undefined,
           trackNo: common.track.no ?? undefined,

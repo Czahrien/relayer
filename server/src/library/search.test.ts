@@ -13,6 +13,11 @@ describe("normalize and words", () => {
     expect(words("  ")).toEqual([]);
   });
 
+  it("joins apostrophes instead of splitting on them", () => {
+    expect(words("Don't Stop Me Now")).toEqual(["dont", "stop", "me", "now"]);
+    expect(words("B’Day")).toEqual(["bday"]);
+  });
+
   it("ignores empty queries", () => {
     expect(parseQuery("  !! ")).toBeNull();
   });
@@ -31,6 +36,15 @@ describe("score", () => {
     expect(score(parseQuery("here moon")!, song)).toBe(0);
     // Prefixes only: a word in the middle doesn't match.
     expect(score(parseQuery("eatles")!, song)).toBe(0);
+  });
+
+  it("matches punctuation-free spellings", () => {
+    const fields = indexFields([{ text: "AC/DC", weight: 2 }]);
+    expect(score(parseQuery("acdc")!, fields)).toBeGreaterThan(0);
+    expect(score(parseQuery("ac dc")!, fields)).toBeGreaterThan(0);
+    const bday = indexFields([{ text: "B'Day", weight: 3 }]);
+    expect(score(parseQuery("bday")!, bday)).toBeGreaterThan(0);
+    expect(score(parseQuery("b'day")!, bday)).toBeGreaterThan(0);
   });
 
   it("matches across accents", () => {

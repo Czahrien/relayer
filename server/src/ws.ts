@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
 import type { ClientMessage, ServerMessage } from "@listening-room/shared";
+import type { Library } from "./library/library.js";
+import type { MediaStore } from "./media.js";
 import { CommandError, type Actor, type Room } from "./room.js";
 import { RoomRegistry } from "./rooms.js";
 import { parseClientMessage } from "./validate.js";
@@ -87,6 +89,9 @@ export const ROOM_NOT_FOUND_CLOSE = 4404;
 export interface WebSocketOptions {
   /** Whether `hello` for an unknown room ID creates the room (§5). */
   createRoomOnJoin: boolean;
+  /** The server library, or null when LIBRARY_DIR is unset (§10). */
+  library: Library | null;
+  media: MediaStore;
 }
 
 export function registerWebSocket(
@@ -94,7 +99,7 @@ export function registerWebSocket(
   registry: RoomRegistry,
   hub: Hub,
   resolveYoutube: YoutubeResolver,
-  { createRoomOnJoin }: WebSocketOptions,
+  { createRoomOnJoin, library, media }: WebSocketOptions,
 ): void {
   const heartbeat = setInterval(() => {
     for (const conn of hub.all()) {
@@ -174,6 +179,28 @@ export function registerWebSocket(
       case "addFiles": {
         const ids = room.addFiles(actor, message.files, message.position);
         return send(socket, { type: "filesAccepted", ids });
+      }
+      case "addLibrary": {
+        if (!library) throw new CommandError("The library isn't enabled.");
+        const tracks = message.trackIds.map((id) => library.track(id));
+        if (tracks.some((t) => !t)) throw new CommandError("Some of those tracks are no longer in the library.");
+        const resolved = tracks.map((track) => ({ track: track!, art: track!.albumId ? library.albumArt(track!.albumId) : undefined }));
+        const items = room.addLibrary(
+          actor,
+          resolved.map(({ track, art }) => ({ ...track, hasArt: !!art })),
+          message.position,
+        );
+        // Reference the library files; the snapshot goes out after this handler,
+        // so the records exist before any client asks for them.
+        items.forEach((item, i) => {
+          const { track, art } = resolved[i]!;
+          media.set(roomId, item.id, {
+            mime: track.mime,
+            library: { source: library.source, path: track.path },
+            art: art && { path: art.file, mime: art.mime, owned: false },
+          });
+        });
+        return;
       }
       case "play":
         return room.play(actor);

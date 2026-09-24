@@ -35,6 +35,8 @@ npm run build && npm start   # one process, one port
 | `DATA_DIR` | `./data` | Uploaded media and cover art. Cleared on startup. |
 | `MAX_UPLOAD_MB` | `300` | Maximum size of a single uploaded file. |
 | `ROOM_IDLE_TTL_MIN` | `60` | Minutes an empty room survives before it and its files are deleted. |
+| `LIBRARY_DIR` | unset | A music folder to search and play from rooms (see below). Unset disables the library. |
+| `LIBRARY_RESCAN_MIN` | `360` | Minutes between library rescans. |
 | `CREATE_ROOM_ON_JOIN` | `true` | Opening a link to an unknown room creates it, so links survive a restart. Set to `false` when room creation is behind authentication. |
 
 ### Docker
@@ -62,6 +64,30 @@ client_max_body_size 300m;
 ```
 
 For caddy the default reverse_proxy behavior should work.
+
+### Server music library
+
+Set `LIBRARY_DIR` to a folder of music and anyone in a room can search it by
+song, album, or artist and add tracks to the queue. With Docker, mount the
+folder read-only and point `LIBRARY_DIR` at it:
+
+```yaml
+    environment:
+      LIBRARY_DIR: /music
+    volumes:
+      - /srv/music:/music:ro
+```
+
+The server indexes the folder in the background at startup and rescans it
+every `LIBRARY_RESCAN_MIN` minutes, re-reading only files that changed. The
+index and album art are cached in `DATA_DIR`. Only formats browsers can play
+are indexed (MP3, AAC/M4A, FLAC, Ogg Vorbis/Opus, WAV, WebM); ALAC and WMA are
+skipped, since the app doesn't transcode.
+
+Rooms play library tracks by reference: clients fetch only tracks someone added
+to a live room, through that room's media URLs. Nothing in the library is
+reachable without a room link. Anyone with a room link can search the whole
+library, though.
 
 ### Restricting who can start rooms
 

@@ -21,7 +21,7 @@ describe("WebSocket protocol", () => {
   beforeEach(async () => {
     dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "lr-ws-"));
     ctx = await buildApp(
-      { port: 0, dataDir, maxUploadBytes: 1024 * 1024, roomIdleTtlMs: 60_000, createRoomOnJoin: true },
+      { port: 0, dataDir, maxUploadBytes: 1024 * 1024, roomIdleTtlMs: 60_000, createRoomOnJoin: true, libraryRescanMs: 3_600_000 },
       { youtube: async (url) => ({ youtubeId: "dQw4w9WgXcQ", title: `Video ${url.length}` }) },
     );
     const address = await ctx.app.listen({ port: 0, host: "127.0.0.1" });

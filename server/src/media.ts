@@ -3,18 +3,27 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import type { Readable } from "node:stream";
+import { joinedArtist } from "@listening-room/shared";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { parseFile, selectCover, type IFormat } from "music-metadata";
+import type { LibrarySource } from "./library/source.js";
 import type { RoomRegistry } from "./rooms.js";
 import type { UploadedMetadata } from "./room.js";
 
-interface MediaRecord {
-  path: string;
+/** Where a room item's bytes come from. */
+export interface MediaRecord {
   mime: string;
-  size: number;
-  artPath?: string;
-  artMime?: string;
+  /** An uploaded file in the room's folder: owned by the room and deleted with it. */
+  file?: { path: string; size: number };
+  /** A library track, read through its source: referenced, never deleted (SPEC §10.1). */
+  library?: { source: LibrarySource; path: string };
+  /** Cover art. Only `owned` art (extracted from an upload) is deleted with the item. */
+  art?: { path: string; mime: string; owned: boolean };
 }
+
+/** Shown when a referenced library file can't be opened. */
+export const LIBRARY_FILE_MISSING = "This file is no longer in the library.";
 
 /**
  * Tracks the files stored for each room under DATA_DIR/rooms/<roomId>/.
@@ -67,10 +76,8 @@ export class MediaStore {
       this.uploads.delete(k);
       const record = this.records.get(k);
       this.records.delete(k);
-      if (record) {
-        void fs.rm(record.path, { force: true });
-        if (record.artPath) void fs.rm(record.artPath, { force: true });
-      }
+      if (record?.file) void fs.rm(record.file.path, { force: true });
+      if (record?.art?.owned) void fs.rm(record.art.path, { force: true });
     }
   }
 
@@ -83,6 +90,7 @@ export class MediaStore {
       }
     }
     for (const k of this.records.keys()) if (k.startsWith(prefix)) this.records.delete(k);
+    // Only the room's own folder: referenced library files and art live elsewhere.
     void fs.rm(this.roomDir(roomId), { recursive: true, force: true });
   }
 }
@@ -236,12 +244,12 @@ export function registerMediaRoutes(
         }
         if (!room.pendingUpload(itemId)) {
           // Removed while we were parsing.
-          await fs.rm(result.record.path, { force: true });
-          if (result.record.artPath) await fs.rm(result.record.artPath, { force: true });
+          if (result.record.file) await fs.rm(result.record.file.path, { force: true });
+          if (result.record.art) await fs.rm(result.record.art.path, { force: true });
           return reply.code(410).send({ error: "The item was removed." });
         }
         media.set(roomId, itemId, result.record);
-        const artUrl = result.record.artPath ? `/media/${roomId}/${itemId}/art` : undefined;
+        const artUrl = result.record.art ? `/media/${roomId}/${itemId}/art` : undefined;
         room.completeUpload(itemId, { ...result.meta, artUrl });
         return reply.code(200).send({ ok: true });
       },
@@ -249,26 +257,53 @@ export function registerMediaRoutes(
   });
 
   app.get<{ Params: { roomId: string; itemId: string } }>("/media/:roomId/:itemId", async (request, reply) => {
-    const record = media.get(request.params.roomId, request.params.itemId);
+    const { roomId, itemId } = request.params;
+    const record = media.get(roomId, itemId);
     if (!record) return reply.code(404).send({ error: "Not found." });
-    return sendRange(reply, request.headers.range, record.path, record.size, record.mime);
+    if (record.file) {
+      const file = record.file.path;
+      return sendRange(reply, request.headers.range, record.file.size, record.mime, async (range) =>
+        createReadStream(file, range),
+      );
+    }
+    const library = record.library!;
+    const stat = await library.source.stat(library.path);
+    if (!stat) {
+      // Deleted or moved since it was added: it's broken for everyone, not a client problem.
+      registry.get(roomId)?.itemError(itemId, LIBRARY_FILE_MISSING);
+      return reply.code(404).send({ error: LIBRARY_FILE_MISSING });
+    }
+    return sendRange(reply, request.headers.range, stat.size, record.mime, (range) =>
+      library.source.open(library.path, range),
+    );
   });
 
   app.get<{ Params: { roomId: string; itemId: string } }>("/media/:roomId/:itemId/art", async (request, reply) => {
-    const record = media.get(request.params.roomId, request.params.itemId);
-    if (!record?.artPath || !record.artMime) return reply.code(404).send({ error: "Not found." });
-    const stat = await fs.stat(record.artPath).catch(() => null);
-    if (!stat) return reply.code(404).send({ error: "Not found." });
-    return reply
-      .header("content-type", record.artMime)
-      .header("content-length", stat.size)
-      .header("cache-control", "private, max-age=86400, immutable")
-      .send(createReadStream(record.artPath));
+    const art = media.get(request.params.roomId, request.params.itemId)?.art;
+    if (!art) return reply.code(404).send({ error: "Not found." });
+    return sendImage(reply, art.path, art.mime);
   });
 }
 
-/** Serves a file with the Range support Safari insists on (§5). */
-function sendRange(reply: FastifyReply, rangeHeader: string | undefined, file: string, size: number, mime: string) {
+/** Serves an image file, or 404 if it's gone. */
+export async function sendImage(reply: FastifyReply, file: string, mime: string) {
+  const stat = await fs.stat(file).catch(() => null);
+  if (!stat) return reply.code(404).send({ error: "Not found." });
+  return reply
+    .header("content-type", mime)
+    .header("content-length", stat.size)
+    .header("cache-control", "private, max-age=86400")
+    .send(createReadStream(file));
+}
+
+/** Serves bytes with the Range support Safari insists on (§5). */
+async function sendRange(
+  reply: FastifyReply,
+  rangeHeader: string | undefined,
+  size: number,
+  mime: string,
+  open: (range?: { start: number; end: number }) => Promise<Readable>,
+) {
   reply
     .header("accept-ranges", "bytes")
     .header("content-type", mime)
@@ -283,9 +318,9 @@ function sendRange(reply: FastifyReply, rangeHeader: string | undefined, file: s
       .code(206)
       .header("content-range", `bytes ${range.start}-${range.end}/${size}`)
       .header("content-length", range.end - range.start + 1)
-      .send(createReadStream(file, { start: range.start, end: range.end }));
+      .send(await open(range));
   }
-  return reply.code(200).header("content-length", size).send(size === 0 ? "" : createReadStream(file));
+  return reply.code(200).header("content-length", size).send(size === 0 ? "" : await open());
 }
 
 /** Normalizes a tag's picture format; old ID3 tags use bare names like "JPG". */
@@ -315,20 +350,19 @@ async function ingestFile(partPath: string, dir: string, itemId: string): Promis
   const filePath = path.join(dir, `${itemId}.${verdict.ext}`);
   await fs.rename(partPath, filePath);
   const { size } = await fs.stat(filePath);
-  const record: MediaRecord = { path: filePath, mime: verdict.mime, size };
+  const record: MediaRecord = { mime: verdict.mime, file: { path: filePath, size } };
 
   const cover = selectCover(parsed.common.picture);
   const artMime = cover && imageMime(cover.format);
   if (cover && artMime) {
-    record.artPath = path.join(dir, `${itemId}.art`);
-    record.artMime = artMime;
-    await fs.writeFile(record.artPath, cover.data);
+    record.art = { path: path.join(dir, `${itemId}.art`), mime: artMime, owned: true };
+    await fs.writeFile(record.art.path, cover.data);
   }
 
   const { common, format } = parsed;
   const meta: UploadedMetadata = {
     title: common.title?.trim() || undefined,
-    artist: (common.artist ?? common.albumartist)?.trim() || undefined,
+    artist: (joinedArtist(common) ?? common.albumartist)?.trim() || undefined,
     album: common.album?.trim() || undefined,
     discNo: common.disk.no ?? undefined,
     trackNo: common.track.no ?? undefined,

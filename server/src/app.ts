@@ -5,6 +5,9 @@ import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import type { Config } from "./config.js";
+import { Library } from "./library/library.js";
+import { LocalDirSource } from "./library/source.js";
+import { registerLibraryRoutes } from "./libraryRoutes.js";
 import { MediaStore, registerMediaRoutes } from "./media.js";
 import { RoomRegistry } from "./rooms.js";
 import { Hub, registerWebSocket } from "./ws.js";
@@ -23,6 +26,7 @@ export interface App {
   app: FastifyInstance;
   registry: RoomRegistry;
   media: MediaStore;
+  library: Library | null;
 }
 
 export async function buildApp(config: Config, options: AppOptions = {}): Promise<App> {
@@ -42,6 +46,15 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
     onDelete: (roomId) => media.removeRoom(roomId),
   });
   registry.start();
+
+  const library = config.libraryDir
+    ? new Library({
+        source: new LocalDirSource(config.libraryDir),
+        dataDir: config.dataDir,
+        log: { info: (m) => app.log.info(m), warn: (m) => app.log.warn(m) },
+      })
+    : null;
+  library?.start(config.libraryRescanMs);
 
   await app.register(fastifyWebsocket, { options: { maxPayload: 1024 * 1024 } });
 
@@ -67,8 +80,11 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
   });
 
   registerMediaRoutes(app, registry, media, { maxUploadBytes: config.maxUploadBytes });
+  registerLibraryRoutes(app, registry, library);
   registerWebSocket(app, registry, hub, options.youtube ?? createYoutubeResolver(), {
     createRoomOnJoin: config.createRoomOnJoin,
+    library,
+    media,
   });
 
   if (options.serveClient && existsSync(path.join(clientDist, "index.html"))) {
@@ -87,7 +103,8 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
   app.addHook("onClose", async () => {
     hub.closeAll();
     registry.stop();
+    library?.stop();
   });
 
-  return { app, registry, media };
+  return { app, registry, media, library };
 }

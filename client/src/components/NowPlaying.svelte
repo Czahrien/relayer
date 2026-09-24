@@ -75,7 +75,11 @@
   {:else}
     <div class="details">
       <h2 class="title quiet">Nothing playing</h2>
-      <p class="state">The queue is empty. Drop some music here or paste a YouTube link.</p>
+      {#if (snap?.items.length ?? 0) > 0}
+        <p class="state">The queue finished. Pick a track to hear it again, or add more.</p>
+      {:else}
+        <p class="state">The queue is empty. Drop some music here or paste a YouTube link.</p>
+      {/if}
     </div>
   {/if}
 

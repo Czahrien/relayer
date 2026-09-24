@@ -1,5 +1,5 @@
 import type { QueueItem } from "@listening-room/shared";
-import type { Player } from "./Player.js";
+import { RecoverableError, type Player } from "./Player.js";
 
 // The slice of the IFrame Player API we use.
 interface YTPlayer {
@@ -68,7 +68,7 @@ function loadApi(): Promise<YTNamespace> {
     script.async = true;
     script.onerror = () => {
       apiPromise = null;
-      reject(new Error("Couldn't load the YouTube player."));
+      reject(new RecoverableError("Couldn't load the YouTube player."));
     };
     document.head.append(script);
   });
@@ -96,7 +96,7 @@ export class YouTubePlayer implements Player {
   private pendingLoad: { resolve: () => void; reject: (err: Error) => void } | null = null;
   private tapTimer: ReturnType<typeof setTimeout> | null = null;
   private endedCb = () => {};
-  private errorCb = (_message: string) => {};
+  private errorCb = (_message: string, _recoverable: boolean) => {};
   private durationCb = (_ms: number) => {};
 
   /** Called when programmatic play seems blocked (iOS wants a tap on the video). */
@@ -141,7 +141,7 @@ export class YouTubePlayer implements Player {
     const mount = document.createElement("div");
     host.replaceChildren(mount);
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("YouTube didn't respond.")), LOAD_TIMEOUT_MS);
+      const timeout = setTimeout(() => reject(new RecoverableError("YouTube didn't respond.")), LOAD_TIMEOUT_MS);
       this.player = new api.Player(mount, {
         width: "100%",
         height: "100%",
@@ -222,7 +222,7 @@ export class YouTubePlayer implements Player {
     this.endedCb = cb;
   }
 
-  onError(cb: (message: string) => void): void {
+  onError(cb: (message: string, recoverable: boolean) => void): void {
     this.errorCb = cb;
   }
 
@@ -267,7 +267,7 @@ export class YouTubePlayer implements Player {
       this.pendingLoad.reject(new Error(message));
       this.pendingLoad = null;
     } else {
-      this.errorCb(message);
+      this.errorCb(message, false);
     }
   }
 

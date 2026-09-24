@@ -16,7 +16,7 @@
     "start": "node server/dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "tsc -b server && npm run check -w client"
+    "check": "tsc -b server && tsc -p tsconfig.test.json && npm run check -w client"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

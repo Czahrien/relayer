@@ -103,3 +103,12 @@ HTTPS is recommended: the clipboard API and some mobile browser behavior depend 
 | Shift+← / Shift+→ | Previous / next |
 | M | Mute |
 | D | Toggle the debug panel |
+
+## License
+
+Listening Room is released under the [MIT License](LICENSE).
+
+The web client bundles third-party packages and fonts (including Fraunces and
+Public Sans under the SIL Open Font License 1.1). `npm run build` writes their
+licenses to `client/dist/third-party-licenses.txt`, served at
+`/third-party-licenses.txt`.

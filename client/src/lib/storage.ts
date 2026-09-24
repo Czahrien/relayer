@@ -40,6 +40,19 @@ export const prefs = {
   set showPlayed(value: boolean) {
     write(local, "lr.showPlayed", value ? "1" : "0");
   },
+  /** Browser notifications this viewer asked for (SPEC §8). */
+  get notifySongs(): boolean {
+    return read(local, "lr.notifySongs") === "1";
+  },
+  set notifySongs(value: boolean) {
+    write(local, "lr.notifySongs", value ? "1" : "0");
+  },
+  get notifyChat(): boolean {
+    return read(local, "lr.notifyChat") === "1";
+  },
+  set notifyChat(value: boolean) {
+    write(local, "lr.notifyChat", value ? "1" : "0");
+  },
   get muted(): boolean {
     return read(local, "lr.muted") === "1";
   },

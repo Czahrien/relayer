@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ListenerHealth, Listener } from "@relayer/shared";
-  import { tick } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import Icon from "./Icon.svelte";
 
   let {
@@ -8,11 +8,14 @@
     listeners,
     presence,
     selfId,
+    actions,
   }: {
     roomId: string;
     listeners: Listener[];
     presence: Record<string, ListenerHealth>;
     selfId: string;
+    /** Extra controls beside Copy link. */
+    actions?: Snippet;
   } = $props();
 
   let copied = $state(false);
@@ -64,6 +67,7 @@
       <Icon name={copied ? "check" : "link"} size={18} />
       {copied ? "Copied" : "Copy link"}
     </button>
+    {@render actions?.()}
   </div>
   {#if showUrl}
     <div class="manual-copy">

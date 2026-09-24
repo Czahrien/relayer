@@ -49,8 +49,15 @@ docker compose up -d --build
 ```
 
 Open <http://localhost:3000>, start a session, and share the room's link.
-Prebuilt images aren't published yet; for now `compose.yaml` builds the image
-from the repo.
+`compose.yaml` builds the image from the repo.
+
+Prebuilt images for amd64 and arm64 are published to
+[`ghcr.io/czahrien/relayer`](https://github.com/czahrien/relayer/pkgs/container/relayer):
+`latest` is the newest release, `edge` follows the main branch, and each
+release also gets its version tag (`0.1.0`, `0.1`). To use one, replace the
+`build:` and `image:` lines in `compose.yaml` with
+`image: ghcr.io/czahrien/relayer:latest`, and update with
+`docker compose pull && docker compose up -d`.
 
 To add your music library, create a `compose.override.yaml` next to
 `compose.yaml` (it's gitignored) and restart:

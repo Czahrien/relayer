@@ -16,3 +16,10 @@ updates:
       # Stay on Node 22 LTS until moving to the next LTS on purpose.
       - dependency-name: node
         update-types: [version-update:semver-major]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

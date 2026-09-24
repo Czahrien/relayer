@@ -1,7 +1,12 @@
 # syntax=docker/dockerfile:1
 
+# The build and dependency stages run on the builder's own platform, since
+# their output is plain JavaScript: a multi-platform build only emulates the
+# small runtime stage. If a production dependency ever needs a native build,
+# move the deps stage back onto the target platform.
+
 # ---- Build: compile shared, client, and server ----
-FROM node:22-alpine AS build
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json shared/
@@ -14,7 +19,7 @@ COPY client client
 RUN npm run build
 
 # ---- Production dependencies: the server workspace only ----
-FROM node:22-alpine AS deps
+FROM --platform=$BUILDPLATFORM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
@@ -24,6 +29,15 @@ RUN npm ci --omit=dev --workspace server
 
 # ---- Runtime ----
 FROM node:22-alpine
+
+# OCI labels for local builds; CI overrides them with the version, commit,
+# and build time (.github/workflows/ci.yml).
+LABEL org.opencontainers.image.title="Relayer" \
+      org.opencontainers.image.description="Self-hosted rooms for listening to music together, in sync." \
+      org.opencontainers.image.source="https://github.com/czahrien/relayer" \
+      org.opencontainers.image.url="https://github.com/czahrien/relayer" \
+      org.opencontainers.image.licenses="MIT"
+
 ENV NODE_ENV=production \
     PORT=3000 \
     DATA_DIR=/data

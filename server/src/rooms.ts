@@ -1,9 +1,8 @@
-import { nanoid } from "nanoid";
 import { ROOM_ID_PATTERN } from "@listening-room/shared";
 import { Room, systemClock, type Clock, type RoomHooks } from "./room.js";
+import { generateRoomName } from "./roomNames.js";
 
 const SWEEP_INTERVAL_MS = 60_000;
-const newRoomId = () => nanoid(10);
 
 export interface RegistryOptions {
   idleTtlMs: number;
@@ -28,8 +27,8 @@ export class RoomRegistry {
   }
 
   create(): Room {
-    let roomId = newRoomId();
-    while (this.rooms.has(roomId)) roomId = newRoomId();
+    let roomId = generateRoomName();
+    while (this.rooms.has(roomId)) roomId = generateRoomName();
     return this.getOrCreate(roomId);
   }
 

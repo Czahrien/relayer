@@ -33,7 +33,7 @@ describe("room creation under /start", () => {
       payload: "",
     });
     expect(res.statusCode).toBe(303);
-    const roomId = /^\/r\/([A-Za-z0-9_-]{10})$/.exec(res.headers.location as string)?.[1];
+    const roomId = /^\/r\/([a-z]+-[a-z]+-[a-z]+-\d\d)$/.exec(res.headers.location as string)?.[1];
     expect(roomId).toBeDefined();
     expect(registry.has(roomId!)).toBe(true);
   });

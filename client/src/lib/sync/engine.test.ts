@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { positionAt, type ClientMessage, type QueueItem, type RoomSnapshot } from "@listening-room/shared";
 import type { FilePlayer } from "../players/FilePlayer.js";
-import { SyncEngine } from "./engine.js";
+import { SyncEngine, type CorrectionMode } from "./engine.js";
 
 const now = () => Date.now();
 
@@ -25,6 +25,8 @@ class FakePlayer {
   constructor(
     seekLatencyMs: number | (() => number),
     private readonly startLatencyMs: number,
+    /** Audio drops out for this long whenever the rate changes mid-playback. */
+    private readonly rateGlitchMs = 0,
   ) {
     this.seekLatency = typeof seekLatencyMs === "number" ? () => seekLatencyMs : seekLatencyMs;
   }
@@ -62,7 +64,10 @@ class FakePlayer {
   }
   setRate(rate: number) {
     this.advance();
-    if (rate !== this.rate) this.rateChanges++;
+    if (rate !== this.rate) {
+      this.rateChanges++;
+      if (this.playing) this.readyAt = Math.max(this.readyAt, now() + this.rateGlitchMs);
+    }
     this.rate = rate;
   }
   isBuffering() {
@@ -96,8 +101,14 @@ const item: QueueItem = {
   addedAt: 0,
 };
 
-function run(opts: { seekLatencyMs: number | (() => number); startLatencyMs: number; startPosMs?: number }) {
-  const player = new FakePlayer(opts.seekLatencyMs, opts.startLatencyMs);
+function run(opts: {
+  seekLatencyMs: number | (() => number);
+  startLatencyMs: number;
+  startPosMs?: number;
+  rateGlitchMs?: number;
+  correction?: CorrectionMode;
+}) {
+  const player = new FakePlayer(opts.seekLatencyMs, opts.startLatencyMs, opts.rateGlitchMs);
   const snapshot: RoomSnapshot = {
     roomId: "r",
     rev: 1,
@@ -116,9 +127,23 @@ function run(opts: { seekLatencyMs: number | (() => number); startLatencyMs: num
     clockSynced: () => true,
     send: (m) => sent.push(m),
     file: player as unknown as FilePlayer,
+    correction: opts.correction,
   });
   const drift = () => player.positionMs() - positionAt(snapshot.playback!, now());
-  return { player, engine, drift };
+  /** A new room state, e.g. a resume with its 300 ms lead. */
+  const resumeAt = (anchorPosMs: number, leadMs = 300) => {
+    snapshot.playback = { itemId: "i1", state: "playing", anchorPosMs, anchorTime: now() + leadMs };
+    snapshot.rev++;
+    engine.kick();
+  };
+  const pause = () => {
+    snapshot.playback = { itemId: "i1", state: "paused", anchorPosMs: positionAt(snapshot.playback!, now()), anchorTime: now() };
+    snapshot.rev++;
+    engine.kick();
+  };
+  /** Where the room's timeline is anchored; after a pause, where it paused. */
+  const anchorPos = () => snapshot.playback!.anchorPosMs;
+  return { player, engine, drift, resumeAt, pause, anchorPos };
 }
 
 describe("SyncEngine", () => {
@@ -170,6 +195,83 @@ describe("SyncEngine", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     expect(player.seeks).toBeLessThanOrEqual(4);
     expect(Math.abs(drift())).toBeLessThan(50);
+    engine.stop();
+  });
+
+  it.each([
+    // [label, start latency, warning the room gives]
+    ["resumes (300 ms warning)", 250, 300],
+    ["new tracks (1 s warning)", 900, 1000],
+  ])("learns to start early so later %s land on time", async (_label, startLatencyMs, leadMs) => {
+    const { engine, drift, resumeAt, pause, anchorPos } = run({ seekLatencyMs: 900, startLatencyMs });
+    engine.start();
+    await vi.advanceTimersByTimeAsync(10_000);
+    const startDrifts: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      pause();
+      await vi.advanceTimersByTimeAsync(2000);
+      resumeAt(anchorPos(), leadMs); // resume where it paused
+      await vi.advanceTimersByTimeAsync(leadMs + 1000); // 1 s after the anchor
+      startDrifts.push(drift());
+      await vi.advanceTimersByTimeAsync(5000);
+    }
+    // The lead matches the start latency (learned from the very first start),
+    // so starts land on time.
+    expect(engine.stats.startLeadMs).toBeGreaterThan(startLatencyMs * 0.8);
+    for (const d of startDrifts) expect(Math.abs(d)).toBeLessThan(50);
+    engine.stop();
+  });
+
+  it("does not over-learn when the start latency exceeds the warning", async () => {
+    const { engine, resumeAt, pause, anchorPos } = run({ seekLatencyMs: 900, startLatencyMs: 900 });
+    engine.start();
+    await vi.advanceTimersByTimeAsync(10_000);
+    for (let i = 0; i < 4; i++) {
+      pause();
+      await vi.advanceTimersByTimeAsync(2000);
+      resumeAt(anchorPos());
+      await vi.advanceTimersByTimeAsync(6000);
+    }
+    // Resumes only give 300 ms of warning; the lead must not creep to its cap.
+    expect(engine.stats.startLeadMs).toBeLessThan(1000);
+    engine.stop();
+  });
+
+  it.each(["rate", "seek"] as const)("stays in sync through repeated seeks while playing (%s mode)", async (correction) => {
+    const { player, engine, drift, resumeAt } = run({ seekLatencyMs: 900, startLatencyMs: 900, correction });
+    engine.start();
+    await vi.advanceTimersByTimeAsync(10_000);
+    for (let i = 1; i <= 5; i++) {
+      resumeAt(i * 60_000); // someone scrubs: a new position, 300 ms lead
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(Math.abs(drift())).toBeLessThan(150);
+    }
+    // Each scrub may cost a correction seek, but nothing runs away.
+    expect(player.seeks).toBeLessThanOrEqual(5 + 5 + 2);
+    engine.stop();
+  });
+
+  it("in seek mode, never changes the rate and stays in sync on a player that glitches on rate changes", async () => {
+    const { player, engine, drift } = run({
+      seekLatencyMs: 800,
+      startLatencyMs: 900,
+      rateGlitchMs: 700,
+      startPosMs: 30_000,
+      correction: "seek",
+    });
+    engine.start();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(player.rateChanges).toBe(0);
+    expect(player.seeks).toBeLessThanOrEqual(4);
+    expect(Math.abs(drift())).toBeLessThan(150);
+    engine.stop();
+  });
+
+  it("in seek mode, stays quiet when already in sync", async () => {
+    const { player, engine } = run({ seekLatencyMs: 30, startLatencyMs: 30, correction: "seek" });
+    engine.start();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(player.seeks).toBe(0);
     engine.stop();
   });
 

@@ -14,13 +14,27 @@ import { FilePlayer } from "./players/FilePlayer.js";
 import { YouTubePlayer } from "./players/YouTubePlayer.js";
 import { prefs } from "./storage.js";
 import { ClockSync } from "./sync/clock.js";
-import { SyncEngine } from "./sync/engine.js";
+import { SyncEngine, type CorrectionMode } from "./sync/engine.js";
 import { toast } from "./toasts.svelte.js";
 
 const ACTIVITY_LIMIT = 50;
 /** Matches the server's close code for an unknown room. */
 const ROOM_NOT_FOUND_CLOSE = 4404;
 const ACCEPT_TIMEOUT_MS = 20_000;
+
+/**
+ * WebKit (Safari, and every browser on iOS) glitches when playbackRate changes
+ * during playback, so it corrects drift with seeks. `?sync=rate` or
+ * `?sync=seek` in the URL overrides the choice for testing.
+ */
+function correctionMode(): CorrectionMode {
+  const param = new URLSearchParams(location.search).get("sync");
+  if (param === "rate" || param === "seek") return param;
+  const ua = navigator.userAgent;
+  const iOS = /iP(hone|ad|od)/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const safari = /Safari\//.test(ua) && !/(Chrome|Chromium|Edg|OPR|Firefox)\//.test(ua);
+  return iOS || safari ? "seek" : "rate";
+}
 
 type Command = Exclude<ClientMessage, { type: "hello" | "ping" | "status" | "addFiles" }>;
 
@@ -73,6 +87,7 @@ export class RoomClient {
       send: (message) => this.socket.send(message),
       file: this.filePlayer,
       youtube: this.youtubePlayer,
+      correction: correctionMode(),
     });
     this.youtubePlayer.onNeedsTap = (needed) => {
       if (this.youtubeNeedsTap !== needed) this.youtubeNeedsTap = needed;

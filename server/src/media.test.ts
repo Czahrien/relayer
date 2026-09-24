@@ -29,29 +29,39 @@ const actor = { clientId: "c1", name: "Alice" };
 
 describe("media routes", () => {
   let dataDir: string;
-  let ctx: App;
+  let ctx: App | undefined;
+
+  /** What the stubbed disk reports as free. */
+  let freeDisk = Number.POSITIVE_INFINITY;
+
+  async function start(maxRoomBytes = Number.POSITIVE_INFINITY) {
+    await ctx?.app.close();
+    ctx = await buildApp(
+      { port: 0, dataDir, maxUploadBytes: 64 * 1024, roomIdleTtlMs: 60_000, createRoomOnJoin: true, libraryRescanMs: 3_600_000, maxRoomBytes },
+      { youtube: async () => ({ youtubeId: "x", title: "x" }), freeDiskBytes: async () => freeDisk },
+    );
+  }
 
   beforeEach(async () => {
     dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "lr-media-"));
-    ctx = await buildApp(
-      { port: 0, dataDir, maxUploadBytes: 64 * 1024, roomIdleTtlMs: 60_000, createRoomOnJoin: true, libraryRescanMs: 3_600_000 },
-      { youtube: async () => ({ youtubeId: "x", title: "x" }) },
-    );
+    freeDisk = Number.POSITIVE_INFINITY;
+    await start();
   });
 
   afterEach(async () => {
-    await ctx.app.close();
+    await ctx!.app.close();
+    ctx = undefined;
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
   function addPending(title = "Guess") {
-    const room = ctx.registry.getOrCreate("room1");
+    const room = ctx!.registry.getOrCreate("room1");
     const ids = room.addFiles(actor, [{ tempId: "t", title }], "end");
     return { room, itemId: ids.t! };
   }
 
   function upload(itemId: string, body: Buffer, roomId = "room1") {
-    return ctx.app.inject({
+    return ctx!.app.inject({
       method: "PUT",
       url: `/api/rooms/${roomId}/items/${itemId}/file`,
       headers: { "content-type": "audio/wav" },
@@ -80,7 +90,7 @@ describe("media routes", () => {
     const size = body.length;
     const url = `/media/room1/${itemId}`;
 
-    const full = await ctx.app.inject({ method: "GET", url });
+    const full = await ctx!.app.inject({ method: "GET", url });
     expect(full.statusCode).toBe(200);
     expect(full.headers["accept-ranges"]).toBe("bytes");
     expect(full.headers["content-type"]).toBe("audio/wav");
@@ -88,26 +98,26 @@ describe("media routes", () => {
     expect(full.rawPayload.equals(body)).toBe(true);
 
     // Safari's first probe.
-    const probe = await ctx.app.inject({ method: "GET", url, headers: { range: "bytes=0-1" } });
+    const probe = await ctx!.app.inject({ method: "GET", url, headers: { range: "bytes=0-1" } });
     expect(probe.statusCode).toBe(206);
     expect(probe.headers["content-range"]).toBe(`bytes 0-1/${size}`);
     expect(probe.headers["content-length"]).toBe("2");
     expect(probe.rawPayload.equals(body.subarray(0, 2))).toBe(true);
 
-    const open = await ctx.app.inject({ method: "GET", url, headers: { range: "bytes=100-" } });
+    const open = await ctx!.app.inject({ method: "GET", url, headers: { range: "bytes=100-" } });
     expect(open.statusCode).toBe(206);
     expect(open.headers["content-range"]).toBe(`bytes 100-${size - 1}/${size}`);
     expect(open.rawPayload.equals(body.subarray(100))).toBe(true);
 
-    const suffix = await ctx.app.inject({ method: "GET", url, headers: { range: "bytes=-10" } });
+    const suffix = await ctx!.app.inject({ method: "GET", url, headers: { range: "bytes=-10" } });
     expect(suffix.statusCode).toBe(206);
     expect(suffix.rawPayload.equals(body.subarray(size - 10))).toBe(true);
 
-    const past = await ctx.app.inject({ method: "GET", url, headers: { range: `bytes=${size}-` } });
+    const past = await ctx!.app.inject({ method: "GET", url, headers: { range: `bytes=${size}-` } });
     expect(past.statusCode).toBe(416);
     expect(past.headers["content-range"]).toBe(`bytes */${size}`);
 
-    const head = await ctx.app.inject({ method: "HEAD", url });
+    const head = await ctx!.app.inject({ method: "HEAD", url });
     expect(head.statusCode).toBe(200);
     expect(Number(head.headers["content-length"])).toBe(size);
   });
@@ -135,13 +145,56 @@ describe("media routes", () => {
     expect((await upload(itemId, wav(1))).statusCode).toBe(404);
   });
 
+  it("caps the uploads one room can hold, and frees space when uploads are removed", async () => {
+    // Each 1 s fixture is about 16 kB; the room holds 40 kB.
+    await start(40 * 1024);
+    const room = ctx!.registry.getOrCreate("room1");
+    const ids = room.addFiles(actor, ["a", "b", "c"].map((t) => ({ tempId: t, title: t })), "end");
+    expect((await upload(ids.a!, wav(1))).statusCode).toBe(200);
+    expect((await upload(ids.b!, wav(1))).statusCode).toBe(200);
+    const full = await upload(ids.c!, wav(1));
+    expect(full.statusCode).toBe(413);
+    expect(room.getItem(ids.c!)?.error).toMatch(/reached its 0 MB limit|limit for uploads/);
+    expect(ctx!.media.used("room1")).toBe(2 * wav(1).length);
+
+    // Removing an upload gives its space back.
+    room.remove(actor, ids.a!);
+    const [d] = Object.values(room.addFiles(actor, [{ tempId: "d", title: "d" }], "end"));
+    expect((await upload(d!, wav(1))).statusCode).toBe(200);
+  });
+
+  it("keeps the room total right when uploads fail", async () => {
+    await start(1024 * 1024);
+    const room = ctx!.registry.getOrCreate("room1");
+    const ids = room.addFiles(actor, [{ tempId: "junk", title: "junk" }, { tempId: "big", title: "big" }], "end");
+    // Not audio: stored, rejected, and given back.
+    await upload(ids.junk!, Buffer.from("not audio ".repeat(500)));
+    // Over the 64 kB per-file limit, without a content length to catch it early.
+    await ctx!.app.inject({
+      method: "PUT",
+      url: `/api/rooms/room1/items/${ids.big!}/file`,
+      headers: { "content-type": "audio/wav", "transfer-encoding": "chunked" },
+      payload: wav(10),
+    });
+    expect(room.getItem(ids.big!)?.status).toBe("error");
+    expect(ctx!.media.used("room1")).toBe(0);
+  });
+
+  it("refuses uploads when the disk is nearly full", async () => {
+    freeDisk = 100 * 1024 * 1024; // below the 512 MB reserve
+    const { room, itemId } = addPending();
+    const res = await upload(itemId, wav(1));
+    expect(res.statusCode).toBe(507);
+    expect(room.getItem(itemId)?.error).toMatch(/out of disk space/);
+  });
+
   it("deletes files when their item is removed", async () => {
     const { room, itemId } = addPending();
     await upload(itemId, wav(1));
     room.remove(actor, itemId);
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(await fs.readdir(path.join(dataDir, "rooms", "room1"))).toEqual([]);
-    expect((await ctx.app.inject({ method: "GET", url: `/media/room1/${itemId}` })).statusCode).toBe(404);
+    expect((await ctx!.app.inject({ method: "GET", url: `/media/room1/${itemId}` })).statusCode).toBe(404);
   });
 });
 

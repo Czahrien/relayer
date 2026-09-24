@@ -34,6 +34,7 @@ npm run build && npm start   # one process, one port
 | `PORT` | `3000` | Port the server listens on. |
 | `DATA_DIR` | `./data` | Uploaded media and cover art. Cleared on startup. |
 | `MAX_UPLOAD_MB` | `300` | Maximum size of a single uploaded file. |
+| `MAX_ROOM_MB` | `2048` | Maximum total size of the uploads one room holds. `0` means no limit. |
 | `ROOM_IDLE_TTL_MIN` | `60` | Minutes an empty room survives before it and its files are deleted. |
 | `LIBRARY_DIR` | unset | A music folder to search and play from rooms (see below). Unset disables the library. |
 | `LIBRARY_RESCAN_MIN` | `360` | Minutes between library rescans. |

@@ -32,6 +32,8 @@ export const LIBRARY_FILE_MISSING = "This file is no longer in the library.";
 export class MediaStore {
   readonly root: string;
   private readonly records = new Map<string, MediaRecord>();
+  /** Bytes of uploads each room holds, including uploads still streaming in. */
+  private readonly usage = new Map<string, number>();
   private readonly uploads = new Map<string, AbortController>();
 
   constructor(dataDir: string) {
@@ -42,6 +44,18 @@ export class MediaStore {
   async init(): Promise<void> {
     await fs.rm(this.root, { recursive: true, force: true });
     await fs.mkdir(this.root, { recursive: true });
+  }
+
+  /** Upload bytes the room holds (library tracks don't count: they're referenced). */
+  used(roomId: string): number {
+    return this.usage.get(roomId) ?? 0;
+  }
+
+  /** Adds (or, with a negative number, returns) upload bytes to a room's total. */
+  charge(roomId: string, bytes: number): void {
+    const total = Math.max(0, this.used(roomId) + bytes);
+    if (total === 0) this.usage.delete(roomId);
+    else this.usage.set(roomId, total);
   }
 
   roomDir(roomId: string): string {
@@ -76,7 +90,10 @@ export class MediaStore {
       this.uploads.delete(k);
       const record = this.records.get(k);
       this.records.delete(k);
-      if (record?.file) void fs.rm(record.file.path, { force: true });
+      if (record?.file) {
+        this.charge(roomId, -record.file.size);
+        void fs.rm(record.file.path, { force: true });
+      }
       if (record?.art?.owned) void fs.rm(record.art.path, { force: true });
     }
   }
@@ -90,6 +107,7 @@ export class MediaStore {
       }
     }
     for (const k of this.records.keys()) if (k.startsWith(prefix)) this.records.delete(k);
+    this.usage.delete(roomId);
     // Only the room's own folder: referenced library files and art live elsewhere.
     void fs.rm(this.roomDir(roomId), { recursive: true, force: true });
   }
@@ -168,30 +186,58 @@ export function parseRange(header: string, size: number): ByteRange | "unsatisfi
 // ---- Routes ----
 
 class TooLargeError extends Error {}
+class RoomFullError extends Error {}
 
-function byteLimit(max: number): Transform {
-  let total = 0;
-  return new Transform({
+/** Leave this much disk free for everything else on the server. */
+export const MIN_FREE_DISK_BYTES = 512 * 1024 * 1024;
+
+/**
+ * Passes bytes through while enforcing the per-file limit and charging the
+ * room as they arrive, so concurrent uploads can't overshoot the room limit.
+ */
+function meteredUpload(
+  media: MediaStore,
+  roomId: string,
+  maxFileBytes: number,
+  maxRoomBytes: number,
+): Transform & { received: number } {
+  const stream = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
-      total += chunk.length;
-      if (total > max) callback(new TooLargeError());
-      else callback(null, chunk);
+      if (stream.received + chunk.length > maxFileBytes) return callback(new TooLargeError());
+      if (media.used(roomId) + chunk.length > maxRoomBytes) return callback(new RoomFullError());
+      stream.received += chunk.length;
+      media.charge(roomId, chunk.length);
+      callback(null, chunk);
     },
-  });
+  }) as Transform & { received: number };
+  stream.received = 0;
+  return stream;
 }
 
 export interface MediaRouteOptions {
   maxUploadBytes: number;
+  /** Total upload storage per room (Infinity for no limit). */
+  maxRoomBytes: number;
+  /** Free space where uploads are stored; overridable for tests. */
+  freeDiskBytes?: () => Promise<number>;
 }
 
 export function registerMediaRoutes(
   app: FastifyInstance,
   registry: RoomRegistry,
   media: MediaStore,
-  { maxUploadBytes }: MediaRouteOptions,
+  { maxUploadBytes, maxRoomBytes, freeDiskBytes }: MediaRouteOptions,
 ): void {
-  const maxMb = Math.round(maxUploadBytes / 1024 / 1024);
-  const tooLarge = `This file is larger than the ${maxMb} MB upload limit.`;
+  const mb = (bytes: number) => Math.round(bytes / 1024 / 1024);
+  const tooLarge = `This file is larger than the ${mb(maxUploadBytes)} MB upload limit.`;
+  const roomFull = `This room has reached its ${mb(maxRoomBytes)} MB limit for uploads. Remove some uploads to add more.`;
+  const diskFull = "The server is almost out of disk space, so it can't take more uploads right now.";
+  const freeDisk =
+    freeDiskBytes ??
+    (async () => {
+      const stats = await fs.statfs(media.root);
+      return stats.bavail * stats.bsize;
+    });
 
   // Uploads are raw bodies streamed straight to disk, so this scope skips body parsing.
   void app.register(async (scope) => {
@@ -207,27 +253,43 @@ export function registerMediaRoutes(
           return reply.code(404).send({ error: "That item isn't waiting for an upload." });
         }
         const declared = Number(request.headers["content-length"]);
-        if (Number.isFinite(declared) && declared > maxUploadBytes) {
+        const size = Number.isFinite(declared) ? declared : 0;
+        if (size > maxUploadBytes) {
           room.failUpload(itemId, tooLarge);
           return reply.code(413).header("connection", "close").send({ error: tooLarge });
+        }
+        if (media.used(roomId) + size > maxRoomBytes) {
+          room.failUpload(itemId, roomFull);
+          return reply.code(413).header("connection", "close").send({ error: roomFull });
+        }
+        if ((await freeDisk()) - size < MIN_FREE_DISK_BYTES) {
+          room.failUpload(itemId, diskFull);
+          request.log.warn({ roomId }, "upload refused: low disk space");
+          return reply.code(507).header("connection", "close").send({ error: diskFull });
         }
         const controller = media.beginUpload(roomId, itemId);
         if (!controller) return reply.code(409).send({ error: "This item is already being uploaded." });
 
         const dir = media.roomDir(roomId);
         const partPath = path.join(dir, `${itemId}.part`);
-        const discard = () => fs.rm(partPath, { force: true });
+        const meter = meteredUpload(media, roomId, maxUploadBytes, maxRoomBytes);
+        /** Deletes the partial file and gives its bytes back to the room. */
+        const discard = async () => {
+          await fs.rm(partPath, { force: true });
+          media.charge(roomId, -meter.received);
+        };
         try {
           await fs.mkdir(dir, { recursive: true });
-          await pipeline(request.raw, byteLimit(maxUploadBytes), createWriteStream(partPath), {
+          await pipeline(request.raw, meter, createWriteStream(partPath), {
             signal: controller.signal,
           });
         } catch (err) {
           await discard();
           if (controller.signal.aborted) return reply.code(410).send({ error: "The item was removed." });
-          if (err instanceof TooLargeError) {
-            room.failUpload(itemId, tooLarge);
-            return reply.code(413).header("connection", "close").send({ error: tooLarge });
+          if (err instanceof TooLargeError || err instanceof RoomFullError) {
+            const message = err instanceof TooLargeError ? tooLarge : roomFull;
+            room.failUpload(itemId, message);
+            return reply.code(413).header("connection", "close").send({ error: message });
           }
           room.failUpload(itemId, "The upload didn't finish.");
           request.log.warn({ err, itemId }, "upload interrupted");
@@ -244,6 +306,7 @@ export function registerMediaRoutes(
         }
         if (!room.pendingUpload(itemId)) {
           // Removed while we were parsing.
+          media.charge(roomId, -meter.received);
           if (result.record.file) await fs.rm(result.record.file.path, { force: true });
           if (result.record.art) await fs.rm(result.record.art.path, { force: true });
           return reply.code(410).send({ error: "The item was removed." });

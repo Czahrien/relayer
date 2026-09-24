@@ -89,6 +89,24 @@ to a live room, through that room's media URLs. Nothing in the library is
 reachable without a room link. Anyone with a room link can search the whole
 library, though.
 
+#### Library report
+
+`library-report` writes a Markdown report of problems in the library that the
+app works around but that are better fixed in the files: formats browsers
+can't play, duplicate tracks, album tag typos, missing tags, artist spelling
+variants, and albums without art. It only reads the library, and it builds its
+own temporary index, so it's safe to run while the server is up. A full scan of
+about 5,000 tracks takes a couple of minutes.
+
+```sh
+npm run library-report -- /path/to/music --out library-notes.md   # from the repo
+docker compose exec -T listening-room node server/dist/tools/libraryReport.js > library-notes.md
+```
+
+The library folder defaults to `LIBRARY_DIR`, and without `--out` the report
+goes to standard output. From the repo, a relative `--out` path is relative to
+the folder you run it in.
+
 ### Restricting who can start rooms
 
 Everything about creating a room lives under `/start`: `GET /start` is the start

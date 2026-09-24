@@ -25,7 +25,8 @@ export interface LibraryTrack extends Omit<LibraryTrackInfo, "hasArt"> {
   mime: string;
 }
 
-interface Album extends LibraryAlbumInfo {
+/** An album as the index sees it (server-side; includes paths). */
+export interface LibraryAlbum extends LibraryAlbumInfo {
   /** Ordered by disc, track, then filename. */
   tracks: LibraryTrack[];
   /** Folder the album lives in (multi-disc subfolders collapse into their parent). */
@@ -115,7 +116,7 @@ function albumDir(trackPath: string): string {
   return parts.join("/");
 }
 
-function albumInfo(a: Album): LibraryAlbumInfo {
+function albumInfo(a: LibraryAlbum): LibraryAlbumInfo {
   const { id, title, artist, year, trackCount, durationMs, hasArt } = a;
   return { id, title, artist, year, trackCount, durationMs, hasArt };
 }
@@ -143,7 +144,7 @@ export class Library {
   private art = new Map<string, AlbumArt>();
   /** Albums, artists, and search fields; rebuilt lazily after the tracks change. */
   private views: {
-    albums: Map<string, Album>;
+    albums: Map<string, LibraryAlbum>;
     artists: Map<string, Artist>;
     trackFields: Map<string, IndexedField[]>;
   } | null = null;
@@ -202,6 +203,17 @@ export class Library {
   }
 
   // ---- Queries ----
+
+  /** Every indexed track (server-side records, with paths). */
+  listTracks(): readonly LibraryTrack[] {
+    this.getViews(); // assigns albumId
+    return [...this.tracks.values()];
+  }
+
+  /** Every album, with its ordered tracks and folder. */
+  listAlbums(): readonly LibraryAlbum[] {
+    return [...this.getViews().albums.values()];
+  }
 
   track(id: string): LibraryTrack | undefined {
     this.getViews(); // assigns albumId
@@ -402,7 +414,7 @@ export class Library {
     for (const album of albums.values()) album.hasArt = !!this.art.get(album.id)?.file;
   }
 
-  private async extractArt(album: Album, key: string): Promise<AlbumArt> {
+  private async extractArt(album: LibraryAlbum, key: string): Promise<AlbumArt> {
     const write = async (data: Uint8Array, mime: string): Promise<AlbumArt> => {
       const file = `${album.id}.${mime.split("/")[1]!.replace("jpeg", "jpg")}`;
       await fs.writeFile(path.join(this.artDir, file), data);
@@ -473,7 +485,7 @@ export class Library {
       group.tracks.push(track);
     }
 
-    const albums = new Map<string, Album>();
+    const albums = new Map<string, LibraryAlbum>();
     for (const [id, group] of grouped) {
       const tracks = group.tracks.sort(compareTracks);
       const artist = albumArtistOf(tracks);

@@ -81,11 +81,20 @@ function send(socket: WebSocket, message: ServerMessage): void {
   sendRaw(socket, JSON.stringify(message));
 }
 
+/** Close code telling the client the room doesn't exist, so it stops reconnecting. */
+export const ROOM_NOT_FOUND_CLOSE = 4404;
+
+export interface WebSocketOptions {
+  /** Whether `hello` for an unknown room ID creates the room (§5). */
+  createRoomOnJoin: boolean;
+}
+
 export function registerWebSocket(
   app: FastifyInstance,
   registry: RoomRegistry,
   hub: Hub,
   resolveYoutube: YoutubeResolver,
+  { createRoomOnJoin }: WebSocketOptions,
 ): void {
   const heartbeat = setInterval(() => {
     for (const conn of hub.all()) {
@@ -137,7 +146,11 @@ export function registerWebSocket(
     }
     if (message.type === "hello") {
       if (conn.actor) throw new CommandError("Already joined.");
-      const room = registry.getOrCreate(roomId);
+      const room = createRoomOnJoin ? registry.getOrCreate(roomId) : registry.get(roomId);
+      if (!room) {
+        socket.close(ROOM_NOT_FOUND_CLOSE, "Room not found");
+        return;
+      }
       conn.actor = { clientId: message.clientId, name: message.name };
       room.join(message.clientId, message.name);
       send(socket, { type: "snapshot", snapshot: room.snapshot() });
@@ -148,8 +161,9 @@ export function registerWebSocket(
 
     const actor = conn.actor;
     if (!actor) throw new CommandError("Send hello first.");
-    // The room can be swept only when empty, and this connection is a listener.
-    const room = registry.getOrCreate(roomId);
+    // A room is swept only when empty, and this connection is a listener.
+    const room = registry.get(roomId);
+    if (!room) throw new CommandError("This room doesn't exist.");
 
     switch (message.type) {
       case "addYoutube": {

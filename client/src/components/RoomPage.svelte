@@ -13,9 +13,19 @@
   import JoinOverlay from "./JoinOverlay.svelte";
   import NowPlaying from "./NowPlaying.svelte";
   import QueuePanel from "./QueuePanel.svelte";
+  import RoomMissing from "./RoomMissing.svelte";
 
   let { roomId }: { roomId: string } = $props();
   let client: RoomClient | null = $state(null);
+  /** null while checking; a network failure counts as "exists" and lets the socket decide. */
+  let exists = $state<boolean | null>(null);
+
+  $effect(() => {
+    fetch(`/api/rooms/${encodeURIComponent(roomId)}`).then(
+      (response) => (exists = response.status !== 404),
+      () => (exists = true),
+    );
+  });
   let dragDepth = $state(0);
   let showDebug = $state(false);
 
@@ -162,7 +172,11 @@
   onkeydown={onKeyDown}
 />
 
-{#if !client}
+{#if exists === false || client?.missing}
+  <RoomMissing />
+{:else if exists === null}
+  <!-- checking the room -->
+{:else if !client}
   <JoinOverlay {roomId} onjoin={join} />
 {:else}
   <div class="page">

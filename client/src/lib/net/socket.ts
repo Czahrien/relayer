@@ -6,7 +6,8 @@ const MAX_BACKOFF_MS = 10_000;
 /** A WebSocket that reconnects with exponential backoff (0.5 s up to 10 s). */
 export class ReconnectingSocket {
   onOpen: () => void = () => {};
-  onClose: () => void = () => {};
+  /** Called with the close code. Returning false stops reconnecting. */
+  onClose: (code: number) => boolean | void = () => {};
   onMessage: (message: ServerMessage) => void = () => {};
 
   private ws: WebSocket | null = null;
@@ -57,10 +58,13 @@ export class ReconnectingSocket {
       }
       this.onMessage(message);
     };
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (this.ws !== ws) return;
       this.ws = null;
-      this.onClose();
+      if (this.onClose(event.code) === false) {
+        this.stop();
+        return;
+      }
       this.scheduleRetry();
     };
   }

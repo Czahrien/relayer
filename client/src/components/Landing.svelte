@@ -1,22 +1,10 @@
 <script lang="ts">
-  import { toast } from "../lib/toasts.svelte.js";
-
-  let { navigate }: { navigate: (path: string) => void } = $props();
+  // A plain form POST rather than fetch: the server answers with a redirect to
+  // the new room, and an auth portal in front of /start can redirect to login.
   let starting = $state(false);
-
-  async function start() {
-    starting = true;
-    try {
-      const response = await fetch("/api/rooms", { method: "POST" });
-      if (!response.ok) throw new Error(String(response.status));
-      const { roomId } = (await response.json()) as { roomId: string };
-      navigate(`/r/${roomId}`);
-    } catch {
-      toast("Couldn't start a session. Is the server running?", "error");
-      starting = false;
-    }
-  }
 </script>
+
+<svelte:window onpageshow={() => (starting = false)} />
 
 <main>
   <div class="record" aria-hidden="true">
@@ -27,9 +15,11 @@
     Start a session and share the link. Everyone who opens it hears the same thing at the same moment. Drop in
     audio files, whole album folders, or YouTube links.
   </p>
-  <button class="btn primary" type="button" onclick={start} disabled={starting}>
-    {starting ? "Starting…" : "Start a session"}
-  </button>
+  <form method="post" action="/start" onsubmit={() => (starting = true)}>
+    <button class="btn primary" type="submit" disabled={starting}>
+      {starting ? "Starting…" : "Start a session"}
+    </button>
+  </form>
 </main>
 
 <style>

@@ -12,6 +12,8 @@ services:
     environment:
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-300}
       ROOM_IDLE_TTL_MIN: ${ROOM_IDLE_TTL_MIN:-60}
+      # Set to false when /start is behind authentication; see the README.
+      CREATE_ROOM_ON_JOIN: ${CREATE_ROOM_ON_JOIN:-true}
     volumes:
       # Uploaded media for live rooms. Rooms don't survive a restart, and the
       # server clears this directory on startup.

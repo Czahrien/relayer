@@ -1,8 +1,8 @@
 services:
   listening-room:
     # Built locally from this repo for now. Once images are published to GHCR,
-    # replace `build:` and this `image:` with the published one, e.g.:
-    #   image: ghcr.io/OWNER/listening-room:latest
+    # replace `build:` and this `image:` with the published one:
+    #   image: ghcr.io/czahrien/listening-room:latest
     build: .
     image: listening-room:local
     init: true

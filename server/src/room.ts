@@ -78,7 +78,8 @@ interface ListenerRecord {
   health: { driftMs: number | null; state: ListenerSyncState };
 }
 
-const ACTIVITY_LIMIT = 50;
+/** Activity and chat kept (and sent on join); chat fills it faster than events alone. */
+const ACTIVITY_LIMIT = 200;
 /** How long a departed uploader has to come back before their pending uploads fail. */
 export const UPLOAD_ABANDON_MS = 20_000;
 const MAX_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -371,6 +372,23 @@ export class Room {
     this.commit();
   }
 
+  /** Removes everything before the current item (all of it when the queue has finished). */
+  clearPlayed(actor: Actor): void {
+    const count = Math.min(this.currentIndex, this.items.length);
+    if (count === 0) return;
+    const removed = this.items.splice(0, count);
+    this.currentIndex -= count;
+    for (const item of removed) this.uploaders.delete(item.id);
+    this.hooks.onItemsRemoved?.(removed);
+    this.log(actor.name, `cleared ${count} played ${count === 1 ? "track" : "tracks"}`);
+    this.commit();
+  }
+
+  /** A chat message: part of the activity log, but not room state (no new rev). */
+  say(actor: Actor, text: string): void {
+    this.log(actor.name, text, "message");
+  }
+
   clear(actor: Actor): void {
     if (this.items.length === 0) return;
     const removed = this.items;
@@ -547,8 +565,8 @@ export class Room {
     this.log(actor.name, `added ${created.length} tracks${from}`);
   }
 
-  private log(by: string, text: string): void {
-    const entry = { at: this.clock.now(), by, text };
+  private log(by: string, text: string, kind: ActivityEntry["kind"] = "event"): void {
+    const entry: ActivityEntry = { at: this.clock.now(), by, text, kind };
     this.activityLog.push(entry);
     if (this.activityLog.length > ACTIVITY_LIMIT) this.activityLog.shift();
     this.hooks.onActivity?.(entry);

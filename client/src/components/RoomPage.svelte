@@ -5,7 +5,7 @@
   import { collectFromDataTransfer, collectFromFileList, extractLinks } from "../lib/ingest/drop.js";
   import { RoomClient } from "../lib/room.svelte.js";
   import { getClientId } from "../lib/storage.js";
-  import ActivityFeed from "./ActivityFeed.svelte";
+  import RoomChat from "./RoomChat.svelte";
   import AddControls from "./AddControls.svelte";
   import DebugPanel from "./DebugPanel.svelte";
   import DropOverlay from "./DropOverlay.svelte";
@@ -198,7 +198,7 @@
       <div class="right">
         <AddControls {client} />
         <QueuePanel {client} />
-        <ActivityFeed entries={client.activity} serverNow={() => client!.serverNow()} />
+        <RoomChat {client} />
       </div>
     </main>
     <SiteFooter />

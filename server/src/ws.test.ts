@@ -124,6 +124,41 @@ describe("WebSocket protocol", () => {
     expect(log.entries.map((e) => e.text)).toContain("added “Video 28”");
   });
 
+  it("relays chat messages to everyone, and limits how fast one sender can post", async () => {
+    const a = await connect();
+    a.send({ type: "hello", clientId: "a", name: "Ann" });
+    await a.next("snapshot");
+    const b = await connect();
+    b.send({ type: "hello", clientId: "b", name: "Ben" });
+    await b.next("snapshot");
+    await b.next("activity"); // the log sent on join
+
+    a.send({ type: "chat", text: "  have you heard   the new one?  " });
+    const received = await b.next("activity");
+    expect(received.entries).toEqual([
+      { at: expect.any(Number), by: "Ann", text: "have you heard the new one?", kind: "message" },
+    ]);
+
+    a.send({ type: "chat", text: "   " });
+    expect((await a.next("error")).message).toMatch(/empty/);
+    a.send({ type: "chat", text: "x".repeat(501) });
+    expect((await a.next("error")).message).toMatch(/at most 500/);
+
+    // One message was sent; four more fit the burst, and the next is refused.
+    for (let i = 0; i < 5; i++) a.send({ type: "chat", text: `spam ${i}` });
+    expect((await a.next("error")).message).toMatch(/too quickly/);
+    const late = await connect();
+    late.send({ type: "hello", clientId: "c", name: "Cat" });
+    const log = await late.next("activity");
+    expect(log.entries.filter((e) => e.kind === "message").map((e) => e.text)).toEqual([
+      "have you heard the new one?",
+      "spam 0",
+      "spam 1",
+      "spam 2",
+      "spam 3",
+    ]);
+  });
+
   it("closes sockets for invalid room IDs", async () => {
     const ws = new WebSocket(`${base}/ws/${encodeURIComponent("bad room!")}`);
     const code = await new Promise<number>((resolve) => (ws.onclose = (event) => resolve(event.code)));

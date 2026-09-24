@@ -1,4 +1,5 @@
 import {
+  MAX_CHAT_LENGTH,
   MAX_LIBRARY_BATCH,
   MAX_NAME_LENGTH,
   type AddPosition,
@@ -118,7 +119,14 @@ export function parseClientMessage(raw: string): ClientMessage {
     case "previous":
     case "restart":
     case "clear":
+    case "clearPlayed":
       return { type: o.type };
+    case "chat": {
+      const text = typeof o.text === "string" ? cleanText(o.text, MAX_CHAT_LENGTH + 1) : "";
+      if (!text) throw new CommandError("Messages can't be empty.");
+      if (text.length > MAX_CHAT_LENGTH) throw new CommandError(`Messages can be at most ${MAX_CHAT_LENGTH} characters.`);
+      return { type: "chat", text };
+    }
     case "seek":
       return { type: "seek", positionMs: num(o, "positionMs") };
     case "jump":

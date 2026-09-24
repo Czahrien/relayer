@@ -74,6 +74,8 @@ export interface ActivityEntry {
   at: number; // server epoch ms
   by: string; // display name, or "" for the room itself
   text: string;
+  /** "event" for things that happened ("added 3 tracks"), "message" for chat. */
+  kind: "event" | "message";
 }
 
 // ---- Server library (SPEC §10) ----
@@ -142,6 +144,8 @@ export type ClientMessage =
   | { type: "move"; itemId: string; toIndex: number }
   | { type: "remove"; itemId: string }
   | { type: "clear" }
+  | { type: "clearPlayed" }
+  | { type: "chat"; text: string }
   | { type: "reportDuration"; itemId: string; durationMs: number }
   | { type: "ended"; itemId: string }
   | { type: "itemError"; itemId: string; message: string }
@@ -155,12 +159,13 @@ export type ServerMessage =
   | { type: "snapshot"; snapshot: RoomSnapshot }
   | { type: "pong"; t0: number; serverTime: number }
   | { type: "filesAccepted"; ids: Record<string, string> }
-  // Live entries arrive one at a time; on join the last 50 arrive in one message.
+  // Live entries arrive one at a time; on join the recent log arrives in one message.
   | { type: "activity"; entries: ActivityEntry[] }
   | { type: "presence"; listeners: ListenerHealth[] }
   | { type: "error"; message: string };
 
 export const MAX_NAME_LENGTH = 40;
+export const MAX_CHAT_LENGTH = 500;
 /** Most library tracks one addLibrary may add (a large box set). */
 export const MAX_LIBRARY_BATCH = 500;
 export const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;

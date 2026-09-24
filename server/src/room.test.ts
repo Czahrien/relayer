@@ -408,6 +408,68 @@ describe("clear", () => {
   });
 });
 
+describe("clearPlayed", () => {
+  it("removes the played tracks and keeps the current one playing", () => {
+    const { room, state, titles, current, addReady, removed } = setup();
+    addReady(["A", "B", "C", "D"]);
+    room.next(alice);
+    room.next(alice); // current C
+    const pb = state().playback;
+    room.clearPlayed(alice);
+    expect(titles()).toEqual(["C", "D"]);
+    expect(state().currentIndex).toBe(0);
+    expect(current()).toBe("C");
+    expect(state().playback).toEqual(pb);
+    expect(removed).toEqual(["A", "B"]);
+  });
+
+  it("clears everything once the queue has finished", () => {
+    const { room, state, addReady } = setup();
+    addReady(["A", "B"]);
+    room.next(alice);
+    room.next(alice);
+    room.clearPlayed(alice);
+    expect(state()).toMatchObject({ items: [], currentIndex: 0, playback: null });
+  });
+
+  it("does nothing when nothing has played", () => {
+    const { room, state, addReady, activity } = setup();
+    addReady(["A", "B"]);
+    const rev = state().rev;
+    room.clearPlayed(alice);
+    expect(state().rev).toBe(rev);
+    expect(activity.at(-1)?.text).not.toMatch(/cleared/);
+  });
+
+  it("says so in the activity feed", () => {
+    const { room, addReady, activity } = setup();
+    addReady(["A", "B", "C"]);
+    room.next(alice);
+    room.next(alice);
+    room.clearPlayed(alice);
+    expect(activity.at(-1)).toMatchObject({ by: "Alice", text: "cleared 2 played tracks", kind: "event" });
+  });
+});
+
+describe("chat", () => {
+  it("adds messages to the activity log without changing room state", () => {
+    const { room, state, activity } = setup();
+    const rev = state().rev;
+    room.say(alice, "this one's a banger");
+    expect(activity.at(-1)).toMatchObject({ by: "Alice", text: "this one's a banger", kind: "message" });
+    expect(room.activity().at(-1)?.kind).toBe("message");
+    expect(state().rev).toBe(rev);
+  });
+
+  it("keeps the most recent 200 entries", () => {
+    const { room } = setup();
+    for (let i = 0; i < 250; i++) room.say(alice, `message ${i}`);
+    const log = room.activity();
+    expect(log).toHaveLength(200);
+    expect(log[0]!.text).toBe("message 50");
+  });
+});
+
 describe("advancing", () => {
   it("advances on the server timer when the duration runs out", () => {
     const { clock, current, state, addReady } = setup();

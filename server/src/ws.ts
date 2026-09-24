@@ -15,6 +15,24 @@ interface Connection {
   socket: WebSocket;
   actor: Actor | null; // null until `hello`
   alive: boolean;
+  /** Chat rate limit: a bucket of messages that refills over time. */
+  chat: { tokens: number; refilledAt: number };
+}
+
+/** Bursts of up to 5 messages, then one every 2 seconds. */
+const CHAT_BURST = 5;
+const CHAT_REFILL_MS = 2000;
+
+/** Takes one message from the connection's allowance; false when it's used up. */
+function allowChat(conn: Connection, now: number): boolean {
+  const refill = Math.floor((now - conn.chat.refilledAt) / CHAT_REFILL_MS);
+  if (refill > 0) {
+    conn.chat.tokens = Math.min(CHAT_BURST, conn.chat.tokens + refill);
+    conn.chat.refilledAt = conn.chat.tokens === CHAT_BURST ? now : conn.chat.refilledAt + refill * CHAT_REFILL_MS;
+  }
+  if (conn.chat.tokens === 0) return false;
+  conn.chat.tokens--;
+  return true;
 }
 
 /** Tracks sockets per room and fans out broadcasts. */
@@ -120,7 +138,12 @@ export function registerWebSocket(
       socket.close(1008, "Invalid room");
       return;
     }
-    const conn: Connection = { socket, actor: null, alive: true };
+    const conn: Connection = {
+      socket,
+      actor: null,
+      alive: true,
+      chat: { tokens: CHAT_BURST, refilledAt: Date.now() },
+    };
     hub.add(roomId, conn);
 
     socket.on("pong", () => (conn.alive = true));
@@ -224,6 +247,11 @@ export function registerWebSocket(
         return room.remove(actor, message.itemId);
       case "clear":
         return room.clear(actor);
+      case "clearPlayed":
+        return room.clearPlayed(actor);
+      case "chat":
+        if (!allowChat(conn, Date.now())) throw new CommandError("You're sending messages too quickly. Wait a moment.");
+        return room.say(actor, message.text);
       case "reportDuration":
         return room.reportDuration(message.itemId, message.durationMs);
       case "ended":

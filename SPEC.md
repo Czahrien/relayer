@@ -25,7 +25,7 @@ The following are out of scope:
 
 - Accounts or permissions inside the app. Everyone in a room can do everything. Restricting who can *start* rooms is left to a reverse proxy in front of `/start` (§5).
 - Persisting room state across server restarts.
-- Chat or voting.
+- Voting. (Room chat was added later, on request: §8.)
 - Tight sync for multiple speakers in the same physical room.
 - Transcoding. Only formats browsers play natively are supported, for uploads and for the server library alike. This is a deliberate scope decision, not an oversight.
 
@@ -177,7 +177,7 @@ The position can be negative when `anchorTime` is in the future. More generally,
 - `items[currentIndex]` is the **current** item.
 - Everything after the current item is **upcoming**.
 - `currentIndex === items.length` means the room is **idle**, either because the room is new and empty or because the queue finished.
-- History is never removed automatically. Items leave the list only through `remove` (one item) or `clear` (everything).
+- History is never removed automatically. Items leave the list only through `remove` (one item), `clearPlayed` (all history), or `clear` (everything).
 - **Jumping** to an earlier item just moves the pointer. Items after it become upcoming again and will replay. This is deliberate: the list is a playlist, and the pointer is where we are.
 - **"Play next"** works on any item, including history, which is the "hear that one again" affordance. It moves the item to just after the current one without disturbing the pointer. From idle, it moves the item to the end and starts it.
 - When the room is **idle and new items are added**, playback automatically starts at the first newly added item.
@@ -217,6 +217,8 @@ The WebSocket lives at `/ws/:roomId`. Messages are JSON objects of the form `{ t
 | `move` | `itemId, toIndex` | Reorder. |
 | `remove` | `itemId` | Remove one item. If it is still uploading, the uploader aborts its upload and the server discards the partial file. |
 | `clear` | none | Remove all items and go idle. |
+| `clearPlayed` | none | Remove the history (everything before the current item; everything, once the queue has finished). The current item keeps playing. |
+| `chat` | `text` | Post a chat message (up to 500 characters, whitespace collapsed). Each connection may send bursts of 5, then one every 2 s; beyond that the server replies with an `error`. |
 | `reportDuration` | `itemId, durationMs` | Accepted only if the item has no `durationMs` yet. |
 | `ended` | `itemId` | The client's player finished the item. See §6.4. |
 | `itemError` | `itemId, message` | The item itself can't be played (not a local network problem, §6.7). Mark it `error`, and skip it if it is current. |
@@ -229,7 +231,7 @@ The WebSocket lives at `/ws/:roomId`. Messages are JSON objects of the form `{ t
 | `snapshot` | `RoomSnapshot` |
 | `pong` | `t0, serverTime` |
 | `filesAccepted` | `{ ids: { [tempId]: itemId } }` |
-| `activity` | `{ entries: {at, by, text}[] }`, for example "Maya skipped “Song”". Live entries arrive one per message; the last 50 arrive in one message on join. |
+| `activity` | `{ entries: {at, by, text, kind}[] }`: events (`kind: "event"`, for example "Maya skipped “Song”") and chat messages (`kind: "message"`). Live entries arrive one per message; the last 200 arrive in one message on join. Chat doesn't change room state, so it doesn't bump `rev`. |
 | `presence` | Per-listener sync health. This is separate from `snapshot` so that frequent status updates don't bump `rev`. Throttled to once per second. |
 | `error` | `message` |
 
@@ -514,6 +516,7 @@ On wide screens (900 px and up), the room page uses two columns: now playing on 
 ### Queue panel
 
 - **Layout.** One list with three parts: history (dimmed, with a divider between played and upcoming), the current item (highlighted, with a small animated playing indicator), and upcoming items. When the queue has finished, an "End of queue" marker follows the history.
+- **Played tracks fold away.** A "Played · N tracks" row sits above the current item; history is collapsed by default, so a long session doesn't push the upcoming tracks far down, and each viewer's choice is remembered in their browser. The row also has **Clear played** (with a confirmation step), which removes the history for everyone.
 - **Rows.** Each row shows small art, title, artist, duration, who added it, and its status (upload percentage or error message). Error messages are clamped to two lines, with the full text on hover.
 - **Interaction.** Clicking a row jumps to that item. Each row also has a `⋯` menu with **Play next** and **Remove**; YouTube items add **Open on YouTube** and **Copy link** (with a clipboard fallback for plain-HTTP LAN installs).
 - **Reordering.** Upcoming items can be dragged to reorder them, using pointer events so it works on touch screens, or moved with the arrow keys on a focused drag handle.
@@ -521,7 +524,7 @@ On wide screens (900 px and up), the room page uses two columns: now playing on 
 
 ### Other UI
 
-- **Activity feed.** A small, collapsible feed with entries like "Maya added 11 tracks from “Album”" and "Ben skipped “Song”". Errors appear as toasts.
+- **Chat.** A collapsible panel mixing room events ("Maya added 11 tracks from “Album”", shown quietly) with chat messages, oldest first, and a message box at the bottom. It follows new entries unless you've scrolled up to read, and shows an unread count while collapsed. Links (http, https, and www. only) are clickable, and YouTube links get an **Add to queue** button, since sharing music is the point. Errors appear as toasts.
 - **Keyboard shortcuts.** These are ignored while focus is in a text field, and Space is left to a focused button or control.
 
   | Key | Action |

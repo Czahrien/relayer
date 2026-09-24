@@ -33,6 +33,13 @@ export const prefs = {
   set volume(value: number) {
     write(local, "lr.volume", String(value));
   },
+  /** Whether the queue shows played tracks (a per-viewer convenience). */
+  get showPlayed(): boolean {
+    return read(local, "lr.showPlayed") === "1";
+  },
+  set showPlayed(value: boolean) {
+    write(local, "lr.showPlayed", value ? "1" : "0");
+  },
   get muted(): boolean {
     return read(local, "lr.muted") === "1";
   },

@@ -23,6 +23,15 @@ afterEach(async () => {
   await fs.rm(dataDir, { recursive: true, force: true });
 });
 
+describe("health check", () => {
+  it("answers on /healthz", async () => {
+    const { app } = await start(false);
+    const res = await app.inject({ method: "GET", url: "/healthz" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+  });
+});
+
 describe("room creation under /start", () => {
   it("creates a room from the start form and redirects to it", async () => {
     const { app, registry } = await start(false);

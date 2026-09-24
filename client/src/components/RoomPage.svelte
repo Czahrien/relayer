@@ -14,6 +14,7 @@
   import NowPlaying from "./NowPlaying.svelte";
   import QueuePanel from "./QueuePanel.svelte";
   import RoomMissing from "./RoomMissing.svelte";
+  import SiteFooter from "./SiteFooter.svelte";
 
   let { roomId }: { roomId: string } = $props();
   let client: RoomClient | null = $state(null);
@@ -200,6 +201,7 @@
         <ActivityFeed entries={client.activity} serverNow={() => client!.serverNow()} />
       </div>
     </main>
+    <SiteFooter />
   </div>
   <DropOverlay visible={dragDepth > 0} />
   {#if showDebug}

@@ -2,6 +2,7 @@
   import { formatTime, positionAt, youtubeWatchUrl, type QueueItem } from "@relayer/shared";
   import { copyText } from "../lib/clipboard.js";
   import type { RoomClient } from "../lib/room.svelte.js";
+  import { prefs } from "../lib/storage.js";
   import { toast } from "../lib/toasts.svelte.js";
   import Art from "./Art.svelte";
   import Icon from "./Icon.svelte";
@@ -16,6 +17,19 @@
 
   let menuFor = $state<string | null>(null);
   let confirmingClear = $state(false);
+  let confirmingClearPlayed = $state(false);
+  // Played tracks fold away so the current and upcoming ones stay in view.
+  let showPlayed = $state(prefs.showPlayed);
+  const playedCount = $derived(Math.min(currentIndex, items.length));
+
+  function togglePlayed() {
+    showPlayed = !showPlayed;
+    prefs.showPlayed = showPlayed;
+  }
+
+  $effect(() => {
+    if (playedCount === 0) confirmingClearPlayed = false;
+  });
 
   // ---- Remaining time ----
   let now = $state(0);
@@ -114,6 +128,7 @@
     if (event.key === "Escape") {
       menuFor = null;
       confirmingClear = false;
+      confirmingClearPlayed = false;
     }
   }
 </script>
@@ -129,13 +144,40 @@
     <p class="empty">Nothing here yet. Add files, a folder, or a YouTube link.</p>
   {:else}
     <ol class:dragging={drag !== null}>
+      {#if playedCount > 0}
+        <li class="played-head">
+          <button class="played-toggle" type="button" aria-expanded={showPlayed} onclick={togglePlayed}>
+            <span class="chevron" class:open={showPlayed} aria-hidden="true"><Icon name="chevron" size={16} /></span>
+            Played · {playedCount}
+            {playedCount === 1 ? "track" : "tracks"}
+          </button>
+          {#if confirmingClearPlayed}
+            <span class="confirm" role="group" aria-label="Confirm clearing played tracks">
+              <button class="btn small" type="button" onclick={() => (confirmingClearPlayed = false)}>Cancel</button>
+              <button
+                class="btn small danger"
+                type="button"
+                onclick={() => {
+                  client.send({ type: "clearPlayed" });
+                  confirmingClearPlayed = false;
+                }}
+              >
+                Remove {playedCount} played
+              </button>
+            </span>
+          {:else}
+            <button class="btn small" type="button" onclick={() => (confirmingClearPlayed = true)}>Clear played</button>
+          {/if}
+        </li>
+      {/if}
       {#each items as item, index (item.id)}
         {@const isCurrent = index === currentIndex}
         {@const isHistory = index < currentIndex}
         {@const isUpcoming = index > currentIndex}
-        {#if index === currentIndex && index > 0}
+        {#if index === currentIndex && index > 0 && showPlayed}
           <li class="divider" aria-hidden="true"></li>
         {/if}
+        {#if !isHistory || showPlayed}
         <li
           class="row"
           class:current={isCurrent}
@@ -238,6 +280,7 @@
             {/if}
           </div>
         </li>
+        {/if}
       {/each}
       {#if idle}
         <li class="divider labeled"><span>End of queue</span></li>
@@ -546,6 +589,44 @@
 
   .menu .danger {
     color: var(--bad);
+  }
+
+  .played-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 12px;
+    padding: 4px 0 4px 4px;
+  }
+
+  .played-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 8px 0 4px;
+    border: 0;
+    border-radius: var(--radius-s);
+    background: none;
+    color: var(--ink-2);
+    font-size: 14px;
+    font-weight: 560;
+  }
+
+  .played-toggle:hover {
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .played-toggle .chevron {
+    color: var(--ink-3);
+    rotate: -90deg;
+    transition: rotate 150ms;
+  }
+
+  .played-toggle .chevron.open {
+    rotate: 0deg;
   }
 
   .divider {

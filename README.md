@@ -23,10 +23,12 @@ listener.)
   a second. Late joiners start at the right spot.
 - **A shared queue** of uploaded files, whole album folders (drag and drop, or
   pick a folder), YouTube links, and tracks from a server music library. Played
-  tracks stay as history, and clicking one plays it again.
+  tracks fold away as history (clicking one plays it again), and can be cleared.
+- **Room chat,** alongside what's happening in the room. Share a YouTube link in
+  chat and anyone can add it to the queue with a click.
 - **Your music library.** Point the server at a folder of music and rooms can
   search it by song, album, or artist and add whole albums in order.
-- **The details:** cover art, drag-to-reorder (touch too), an activity feed,
+- **The details:** cover art, drag-to-reorder (touch too),
   lock-screen and media-key controls, keyboard shortcuts, light and dark themes,
   and layouts for phones and desktops.
 - **Works in** current Chrome, Firefox, and Safari, on desktop and on phones.

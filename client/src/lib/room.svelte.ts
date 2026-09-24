@@ -19,7 +19,8 @@ import { ClockSync } from "./sync/clock.js";
 import { SyncEngine, type CorrectionMode } from "./sync/engine.js";
 import { toast } from "./toasts.svelte.js";
 
-const ACTIVITY_LIMIT = 50;
+/** Matches the server's log length: chat and events kept for the session. */
+const ACTIVITY_LIMIT = 200;
 /** Matches the server's close code for an unknown room. */
 const ROOM_NOT_FOUND_CLOSE = 4404;
 const ACCEPT_TIMEOUT_MS = 20_000;

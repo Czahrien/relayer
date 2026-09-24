@@ -12,6 +12,8 @@ import { MediaStore, registerMediaRoutes } from "./media.js";
 import { RoomRegistry } from "./rooms.js";
 import { Hub, registerWebSocket } from "./ws.js";
 import { createYoutubeResolver, type YoutubeResolver } from "./youtube.js";
+import { YouTubeData } from "./youtubeApi.js";
+import { registerYoutubeRoutes } from "./youtubeRoutes.js";
 
 const clientDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../client/dist");
 
@@ -22,6 +24,8 @@ export interface AppOptions {
   serveClient?: boolean;
   /** Free disk space, for tests (defaults to statfs on DATA_DIR). */
   freeDiskBytes?: () => Promise<number>;
+  /** The YouTube Data API, for tests (defaults to one using YOUTUBE_API_KEY). */
+  youtubeData?: YouTubeData | null;
 }
 
 export interface App {
@@ -89,10 +93,14 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
     freeDiskBytes: options.freeDiskBytes,
   });
   registerLibraryRoutes(app, registry, library);
+  const youtubeData =
+    options.youtubeData !== undefined ? options.youtubeData : config.youtubeApiKey ? new YouTubeData(config.youtubeApiKey) : null;
+  registerYoutubeRoutes(app, registry, youtubeData);
   registerWebSocket(app, registry, hub, options.youtube ?? createYoutubeResolver(), {
     createRoomOnJoin: config.createRoomOnJoin,
     library,
     media,
+    youtubeData,
   });
 
   if (options.serveClient && existsSync(path.join(clientDist, "index.html"))) {

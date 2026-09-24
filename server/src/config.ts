@@ -12,6 +12,8 @@ export interface Config {
   /** Root of the server music library (SPEC §10); undefined disables it. */
   libraryDir?: string;
   libraryRescanMs: number;
+  /** YouTube Data API key for search and playlists (SPEC §14); undefined disables them. */
+  youtubeApiKey?: string;
 }
 
 function positiveNumber(name: string, fallback: number): number {
@@ -47,5 +49,6 @@ export function loadConfig(): Config {
     createRoomOnJoin: boolean("CREATE_ROOM_ON_JOIN", true),
     libraryDir: process.env.LIBRARY_DIR ? path.resolve(process.env.LIBRARY_DIR) : undefined,
     libraryRescanMs: positiveNumber("LIBRARY_RESCAN_MIN", 360) * 60 * 1000,
+    youtubeApiKey: process.env.YOUTUBE_API_KEY?.trim() || undefined,
   };
 }

@@ -18,6 +18,8 @@ services:
       # The server music library: set to /music and mount your folder below.
       LIBRARY_DIR: ${LIBRARY_DIR:-}
       LIBRARY_RESCAN_MIN: ${LIBRARY_RESCAN_MIN:-360}
+      # A YouTube Data API key turns on YouTube search and playlist links.
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
     volumes:
       # Uploaded media for live rooms. Rooms don't survive a restart, and the
       # server clears this directory on startup.

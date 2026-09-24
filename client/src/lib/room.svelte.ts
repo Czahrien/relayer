@@ -1,5 +1,6 @@
 import {
-  parseYouTubeUrl,
+  isYouTubeLink,
+  youtubeWatchUrl,
   type ActivityEntry,
   type AddPosition,
   type ClientMessage,
@@ -7,6 +8,7 @@ import {
   type ListenerHealth,
   type RoomSnapshot,
   type ServerMessage,
+  type YouTubeResult,
 } from "@relayer/shared";
 import { prepareFiles, type IngestRequest, type PreparedFile } from "./ingest/drop.js";
 import { UploadQueue } from "./ingest/upload.js";
@@ -19,6 +21,7 @@ import { prefs } from "./storage.js";
 import { ClockSync } from "./sync/clock.js";
 import { SyncEngine, type CorrectionMode } from "./sync/engine.js";
 import { toast } from "./toasts.svelte.js";
+import { YouTubeApi } from "./youtube.js";
 
 /** Matches the server's log length: chat and events kept for the session. */
 const ACTIVITY_LIMIT = 200;
@@ -59,6 +62,8 @@ export class RoomClient {
   volume = $state(prefs.volume);
   /** The server library, or null until the first status arrives (SPEC §10). */
   libraryStatus = $state.raw<LibraryStatus | null>(null);
+  /** Whether the server can search YouTube (it has an API key; SPEC §14). */
+  youtubeSearch = $state(false);
   /** Browser notifications this viewer asked for (remembered per browser). */
   notifySongs = $state(prefs.notifySongs);
   notifyChat = $state(prefs.notifyChat);
@@ -71,6 +76,7 @@ export class RoomClient {
   readonly filePlayer = new FilePlayer();
   readonly youtubePlayer = new YouTubePlayer();
   readonly library: LibraryApi;
+  readonly youtube: YouTubeApi;
 
   private readonly socket: ReconnectingSocket;
   private readonly uploads: UploadQueue;
@@ -90,6 +96,7 @@ export class RoomClient {
     readonly name: string,
   ) {
     this.library = new LibraryApi(roomId);
+    this.youtube = new YouTubeApi(roomId);
     this.socket = new ReconnectingSocket(roomSocketUrl(roomId));
     this.socket.onOpen = () => this.handleOpen();
     this.socket.onClose = (code) => this.handleClose(code);
@@ -210,6 +217,20 @@ export class RoomClient {
     toast(position === "next" ? `${label} will play next.` : `Added ${label}.`, "info", 2500);
   }
 
+  /** Queues a YouTube search result. */
+  addYoutubeResult(result: YouTubeResult, position: AddPosition): void {
+    if (!this.send({ type: "addYoutube", url: youtubeWatchUrl(result.youtubeId), position })) return;
+    toast(position === "next" ? `“${result.title}” will play next.` : `Added “${result.title}”.`, "info", 2500);
+  }
+
+  private async refreshYoutubeStatus(): Promise<void> {
+    try {
+      this.youtubeSearch = (await this.youtube.status()).enabled;
+    } catch {
+      // Leave it as it was; the next join retries.
+    }
+  }
+
   private async refreshLibraryStatus(): Promise<void> {
     if (this.libraryPoll) clearTimeout(this.libraryPoll);
     this.libraryPoll = null;
@@ -229,7 +250,7 @@ export class RoomClient {
   async ingest(request: IngestRequest, position: AddPosition = "end"): Promise<void> {
     let rejectedLinks = 0;
     for (const link of request.links) {
-      if (parseYouTubeUrl(link)) this.send({ type: "addYoutube", url: link, position });
+      if (isYouTubeLink(link)) this.send({ type: "addYoutube", url: link, position });
       else rejectedLinks++;
     }
     if (rejectedLinks > 0) toast("Only YouTube links are supported.", "error");
@@ -346,7 +367,10 @@ export class RoomClient {
         // The first snapshot after (re)joining always wins: a restarted server starts rev over.
         if (!this.joinPending && this.snapshot && message.snapshot.rev < this.snapshot.rev) return;
         // Joined, so the room exists: the library endpoints will answer.
-        if (this.joinPending) void this.refreshLibraryStatus();
+        if (this.joinPending) {
+          void this.refreshLibraryStatus();
+          void this.refreshYoutubeStatus();
+        }
         this.announceTrack(message.snapshot, this.joinPending);
         this.joinPending = false;
         this.snapshot = message.snapshot;
@@ -377,6 +401,9 @@ export class RoomClient {
         break;
       case "error":
         toast(message.message, "error");
+        break;
+      case "notice":
+        toast(message.message, "info");
         break;
     }
   }

@@ -102,3 +102,73 @@ export function taggedWav(tags: FixtureTags, options: { seconds?: number; format
   riff.writeUInt32LE(4 + body.length, 4);
   return Buffer.concat([riff, body]);
 }
+
+export interface FakeVideo {
+  title: string;
+  channel: string;
+  duration: string;
+  embeddable?: boolean;
+  ageRestricted?: boolean;
+  live?: boolean;
+}
+
+/** A stand-in for the YouTube Data API: search, videos, playlists, playlistItems. */
+export function fakeYouTube(options: {
+  videos: Record<string, FakeVideo>;
+  search?: string[];
+  playlists?: Record<string, { title: string; items: string[] }>;
+  failWith?: { status: number; reason: string };
+}) {
+  const calls: string[] = [];
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+  const fetchImpl = (async (input: URL) => {
+    const url = new URL(String(input));
+    const endpoint = url.pathname.split("/").pop()!;
+    calls.push(endpoint);
+    if (!url.searchParams.get("key")) return json({ error: { errors: [{ reason: "keyInvalid" }] } }, 400);
+    if (options.failWith) {
+      return json({ error: { errors: [{ reason: options.failWith.reason }] } }, options.failWith.status);
+    }
+    const p = url.searchParams;
+    if (endpoint === "search") {
+      return json({ items: (options.search ?? []).map((videoId) => ({ id: { videoId } })) });
+    }
+    if (endpoint === "videos") {
+      const ids = p.get("id")!.split(",");
+      return json({
+        items: ids
+          .filter((id) => options.videos[id])
+          .map((id) => {
+            const v = options.videos[id]!;
+            return {
+              id,
+              snippet: {
+                title: v.title,
+                channelTitle: v.channel,
+                liveBroadcastContent: v.live ? "live" : "none",
+                thumbnails: { medium: { url: `https://i.ytimg.com/vi/${id}/mqdefault.jpg` } },
+              },
+              contentDetails: { duration: v.duration, contentRating: v.ageRestricted ? { ytRating: "ytAgeRestricted" } : {} },
+              status: { embeddable: v.embeddable ?? true },
+            };
+          }),
+      });
+    }
+    if (endpoint === "playlists") {
+      const list = options.playlists?.[p.get("id")!];
+      return json({ items: list ? [{ snippet: { title: list.title } }] : [] });
+    }
+    if (endpoint === "playlistItems") {
+      const list = options.playlists?.[p.get("playlistId")!];
+      if (!list) return json({ error: { errors: [{ reason: "playlistNotFound" }] } }, 404);
+      const start = Number(p.get("pageToken") ?? 0);
+      const page = list.items.slice(start, start + 50);
+      return json({
+        items: page.map((videoId) => ({ contentDetails: { videoId } })),
+        nextPageToken: start + 50 < list.items.length ? String(start + 50) : undefined,
+      });
+    }
+    return json({}, 404);
+  }) as unknown as typeof fetch;
+  return { fetchImpl, calls };
+}

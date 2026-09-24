@@ -52,6 +52,8 @@ export interface YoutubeItemInfo {
   title: string;
   artist?: string;
   artUrl?: string;
+  /** Known up front when the server has a YouTube API key. */
+  durationMs?: number;
   /** Set when the video is known to be unplayable before anyone tries it. */
   error?: string;
 }
@@ -236,22 +238,33 @@ export class Room {
   }
 
   addYoutube(actor: Actor, info: YoutubeItemInfo, position: AddPosition): QueueItem {
-    const item: QueueItem = {
-      id: nanoid(12),
-      kind: "youtube",
-      status: info.error ? "error" : "ready",
-      error: info.error,
-      youtubeId: info.youtubeId,
-      title: info.title,
-      artist: info.artist,
-      artUrl: info.artUrl,
-      addedBy: actor.name,
-      addedAt: this.clock.now(),
-    };
-    this.insert([item], position);
-    this.log(actor.name, `added “${item.title}”`);
+    return this.addYoutubeVideos(actor, [info], position)[0]!;
+  }
+
+  /** Adds YouTube videos in order, e.g. a playlist; `album` names the playlist. */
+  addYoutubeVideos(actor: Actor, infos: YoutubeItemInfo[], position: AddPosition, album?: string): QueueItem[] {
+    const now = this.clock.now();
+    const created = infos.map(
+      (info): QueueItem => ({
+        id: nanoid(12),
+        kind: "youtube",
+        status: info.error ? "error" : "ready",
+        error: info.error,
+        youtubeId: info.youtubeId,
+        title: info.title,
+        artist: info.artist,
+        album,
+        artUrl: info.artUrl,
+        durationMs: info.durationMs,
+        addedBy: actor.name,
+        addedAt: now,
+      }),
+    );
+    if (created.length === 0) return created;
+    this.insert(created, position);
+    this.logAdded(actor, created);
     this.commit();
-    return item;
+    return created;
   }
 
   // ---- Transport ----

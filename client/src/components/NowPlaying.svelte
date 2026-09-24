@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { effectivePositionAt } from "@listening-room/shared";
+  import { effectivePositionAt, youtubeWatchUrl } from "@listening-room/shared";
   import type { RoomClient } from "../lib/room.svelte.js";
   import Art from "./Art.svelte";
   import Icon from "./Icon.svelte";
@@ -57,6 +57,11 @@
         <p class="byline">
           {item.artist ?? ""}{item.artist && item.album ? " — " : ""}{#if item.album}<i>{item.album}</i>{/if}
         </p>
+      {/if}
+      {#if item.kind === "youtube" && item.youtubeId}
+        <a class="watch" href={youtubeWatchUrl(item.youtubeId)} target="_blank" rel="noopener noreferrer">
+          Watch on YouTube <Icon name="external" size={16} />
+        </a>
       {/if}
       {#if pb.state === "waiting"}
         <p class="state">Waiting for upload…</p>
@@ -246,6 +251,24 @@
   .byline {
     color: var(--ink-2);
     font-size: 16px;
+  }
+
+  .watch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-self: start;
+    min-height: 36px;
+    color: var(--ink-2);
+    font-size: 14px;
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    text-underline-offset: 3px;
+  }
+
+  .watch:hover {
+    color: var(--ink);
+    text-decoration-color: currentColor;
   }
 
   .state {

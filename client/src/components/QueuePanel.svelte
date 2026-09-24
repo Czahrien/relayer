@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { formatTime, positionAt, type QueueItem } from "@listening-room/shared";
+  import { formatTime, positionAt, youtubeWatchUrl, type QueueItem } from "@listening-room/shared";
+  import { copyText } from "../lib/clipboard.js";
   import type { RoomClient } from "../lib/room.svelte.js";
+  import { toast } from "../lib/toasts.svelte.js";
   import Art from "./Art.svelte";
   import Icon from "./Icon.svelte";
 
@@ -99,6 +101,11 @@
     client.send({ type: "move", itemId: item.id, toIndex: to });
   }
 
+  async function copyLink(url: string) {
+    menuFor = null;
+    toast((await copyText(url)) ? "Link copied." : "Couldn't copy the link.", "info", 2500);
+  }
+
   function onWindowPointerDown(event: PointerEvent) {
     if (menuFor && !(event.target as HTMLElement).closest(".menu, .menu-button")) menuFor = null;
   }
@@ -161,7 +168,9 @@
                 {item.artist ?? (item.kind === "youtube" ? "YouTube" : "Unknown artist")} · {item.addedBy}
               </span>
             </span>
-            <span class="status" class:uploading={item.status === "uploading"}>{statusText(item)}</span>
+            <span class="status" class:uploading={item.status === "uploading"} title={item.error}>
+              {statusText(item)}
+            </span>
           </button>
 
           {#if isUpcoming}
@@ -193,6 +202,15 @@
             </button>
             {#if menuFor === item.id}
               <div class="menu" role="menu">
+                {#if item.kind === "youtube" && item.youtubeId}
+                  {@const watchUrl = youtubeWatchUrl(item.youtubeId)}
+                  <a role="menuitem" href={watchUrl} target="_blank" rel="noopener noreferrer" onclick={() => (menuFor = null)}>
+                    <Icon name="external" size={18} /> Open on YouTube
+                  </a>
+                  <button role="menuitem" type="button" onclick={() => copyLink(watchUrl)}>
+                    <Icon name="copy" size={18} /> Copy link
+                  </button>
+                {/if}
                 {#if !isCurrent && item.status !== "error"}
                   <button
                     role="menuitem"
@@ -441,6 +459,12 @@
     font-size: 13px;
     font-variant-numeric: tabular-nums;
     text-align: right;
+    /* Error messages can be long; keep rows compact (full text is in the tooltip). */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
 
   .status.uploading {
@@ -491,7 +515,7 @@
     right: 4px;
     top: calc(100% - 4px);
     display: grid;
-    min-width: 170px;
+    min-width: 190px;
     padding: 6px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -499,7 +523,8 @@
     box-shadow: var(--shadow);
   }
 
-  .menu button {
+  .menu button,
+  .menu a {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -508,10 +533,14 @@
     border: 0;
     border-radius: var(--radius-s);
     background: none;
+    color: inherit;
+    font-size: 15px;
     text-align: left;
+    text-decoration: none;
   }
 
-  .menu button:hover {
+  .menu button:hover,
+  .menu a:hover {
     background: var(--surface-2);
   }
 

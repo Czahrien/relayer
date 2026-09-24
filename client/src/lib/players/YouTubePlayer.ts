@@ -1,4 +1,4 @@
-import type { QueueItem } from "@listening-room/shared";
+import { EMBED_BLOCKED_MESSAGE, type QueueItem } from "@listening-room/shared";
 import { RecoverableError, type Player } from "./Player.js";
 
 // The slice of the IFrame Player API we use.
@@ -48,8 +48,8 @@ const ERRORS: Record<number, string> = {
   2: "YouTube rejected the video ID.",
   5: "YouTube couldn't play this video in the browser.",
   100: "This video was removed or is private.",
-  101: "This video can't be played outside YouTube.",
-  150: "This video can't be played outside YouTube.",
+  101: EMBED_BLOCKED_MESSAGE,
+  150: EMBED_BLOCKED_MESSAGE,
 };
 
 let apiPromise: Promise<YTNamespace> | null = null;

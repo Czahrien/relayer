@@ -5,7 +5,7 @@
   import Icon from "./Icon.svelte";
   import ProgressBar from "./ProgressBar.svelte";
 
-  let { client }: { client: RoomClient } = $props();
+  let { client, theater = $bindable(false) }: { client: RoomClient; theater?: boolean } = $props();
 
   const SOURCE = {
     file: { icon: "file", label: "File" },
@@ -33,13 +33,29 @@
     client.youtubePlayer.attach(ytHost ?? null);
   });
 
+  // Fullscreen goes on our frame, not the iframe, so the embed isn't reloaded.
+  // iPhone Safari only allows fullscreen on <video>, so it gets no button.
+  const canFullscreen = document.fullscreenEnabled;
+  let frame: HTMLDivElement | undefined = $state();
+
+  export function toggleFullscreen() {
+    if (!frame || !canFullscreen) return;
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else if (showVideo) void frame.requestFullscreen().catch(() => {});
+  }
+
+  // A file or library track after a video would otherwise fill the screen.
+  $effect(() => {
+    if (!showVideo && frame && document.fullscreenElement === frame) void document.exitFullscreen().catch(() => {});
+  });
+
   function toggle() {
     client.send({ type: playing ? "pause" : "play" });
   }
 </script>
 
 <section class="now-playing" aria-label="Now playing">
-  <div class="art-frame" class:empty={!item}>
+  <div class="art-frame" class:empty={!item} class:video-frame={showVideo} bind:this={frame}>
     <!-- The embed lives here permanently so the iframe survives track changes.
          Nothing may be drawn on top of it (YouTube's terms). -->
     <div class="video" class:shown={showVideo} bind:this={ytHost}></div>
@@ -139,6 +155,29 @@
     </div>
 
     <div class="volume">
+      {#if showVideo}
+        <button
+          class="icon-btn theater-btn"
+          type="button"
+          aria-label="Theater mode"
+          title="Theater mode (T)"
+          aria-pressed={theater}
+          onclick={() => (theater = !theater)}
+        >
+          <Icon name="theater" size={20} />
+        </button>
+        {#if canFullscreen}
+          <button
+            class="icon-btn"
+            type="button"
+            aria-label="Fullscreen"
+            title="Fullscreen (F)"
+            onclick={toggleFullscreen}
+          >
+            <Icon name="fullscreen" size={20} />
+          </button>
+        {/if}
+      {/if}
       <button
         class="icon-btn"
         type="button"
@@ -180,6 +219,23 @@
     overflow: hidden;
     background: var(--surface-2);
     box-shadow: var(--art-shadow);
+  }
+
+  /* Videos are nearly always 16:9: fill the column's width, but keep the
+     controls on screen by capping the height the same way as the art. */
+  .art-frame.video-frame {
+    max-width: max(320px, (100dvh - 380px) * 16 / 9);
+    aspect-ratio: 16 / 9;
+    background: #000;
+  }
+
+  .art-frame:fullscreen {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    aspect-ratio: auto;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .video {
@@ -318,6 +374,17 @@
 
   .play:disabled {
     opacity: 0.35;
+  }
+
+  .theater-btn[aria-pressed="true"] {
+    color: var(--accent);
+  }
+
+  /* Below 900px the layout is already one column. */
+  @media (max-width: 899px) {
+    .theater-btn {
+      display: none;
+    }
   }
 
   .volume {

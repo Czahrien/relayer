@@ -26,6 +26,8 @@
     search: { stroke: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13ZM15.3 15.3 20 20" },
     library: { stroke: "M5 4.5v15M9.5 4.5v15M14 5.3l4.7 14" },
     back: { stroke: "M14.5 6l-6 6 6 6" },
+    theater: { stroke: "M3 7.5A1.5 1.5 0 0 1 4.5 6h15A1.5 1.5 0 0 1 21 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16.5z" },
+    fullscreen: { stroke: "M4.5 9V4.5H9M15 4.5h4.5V9M19.5 15v4.5H15M9 19.5H4.5V15" },
     queueNext: { stroke: "M4 6h11M4 11h11M4 16h6M15 14l4 3-4 3z" },
   } as const;
 

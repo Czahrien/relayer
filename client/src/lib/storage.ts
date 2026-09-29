@@ -53,6 +53,13 @@ export const prefs = {
   set notifyChat(value: boolean) {
     write(local, "lr.notifyChat", value ? "1" : "0");
   },
+  /** Whether videos take the full page width (a per-viewer convenience). */
+  get theater(): boolean {
+    return read(local, "lr.theater") === "1";
+  },
+  set theater(value: boolean) {
+    write(local, "lr.theater", value ? "1" : "0");
+  },
   get muted(): boolean {
     return read(local, "lr.muted") === "1";
   },

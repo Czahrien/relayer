@@ -4,7 +4,7 @@
   import { registerMediaSessionHandlers, updateMediaSession } from "../lib/mediaSession.js";
   import { collectFromDataTransfer, collectFromFileList, extractLinks } from "../lib/ingest/drop.js";
   import { RoomClient } from "../lib/room.svelte.js";
-  import { getClientId } from "../lib/storage.js";
+  import { getClientId, prefs } from "../lib/storage.js";
   import RoomChat from "./RoomChat.svelte";
   import AddControls from "./AddControls.svelte";
   import DebugPanel from "./DebugPanel.svelte";
@@ -31,6 +31,11 @@
   let dragDepth = $state(0);
   // D toggles it; ?debug opens it on devices without a keyboard.
   let showDebug = $state(new URLSearchParams(location.search).has("debug"));
+  let theater = $state(prefs.theater);
+  $effect(() => {
+    prefs.theater = theater;
+  });
+  let nowPlaying: NowPlaying | undefined = $state();
 
   function join(name: string) {
     const c = new RoomClient(roomId, getClientId(), name);
@@ -49,6 +54,7 @@
     const pb = snap?.playback ?? null;
     return { item: pb && snap ? snap.items[snap.currentIndex] : undefined, pb };
   });
+  const showingVideo = $derived(current.item?.kind === "youtube" && current.item.status === "ready");
 
   $effect(() => {
     const { item, pb } = current;
@@ -155,6 +161,16 @@
       case "M":
         client.toggleMute();
         break;
+      case "t":
+      case "T":
+        if (!showingVideo) return;
+        theater = !theater;
+        break;
+      case "f":
+      case "F":
+        if (!showingVideo) return;
+        nowPlaying?.toggleFullscreen();
+        break;
       case "d":
       case "D":
         showDebug = !showDebug;
@@ -196,9 +212,9 @@
     {#if client.hasConnected && !client.connected}
       <div class="banner" role="status">Reconnecting…</div>
     {/if}
-    <main class="layout">
+    <main class="layout" class:theater={theater && showingVideo}>
       <div class="left">
-        <NowPlaying {client} />
+        <NowPlaying {client} bind:theater bind:this={nowPlaying} />
       </div>
       <div class="right">
         <AddControls {client} />
@@ -241,6 +257,24 @@
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 48px;
       padding: 32px 32px 48px;
+    }
+  }
+
+  /* Theater mode: the video spans the page, as tall as the window allows
+     under the header, and the queue and chat move below it. */
+  @media (min-width: 900px) {
+    .layout.theater {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .layout.theater > div {
+      justify-self: center;
+      width: 100%;
+      max-width: max(640px, (100dvh - 130px) * 16 / 9);
+    }
+
+    .layout.theater :global(.art-frame.video-frame) {
+      max-width: none;
     }
   }
 

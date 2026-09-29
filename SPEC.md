@@ -503,6 +503,9 @@ On wide screens (900 px and up), the room page uses two columns: now playing on 
 ### Now playing
 
 - **Art.** A large area showing the embedded cover for files or the video for YouTube items. When there is no art, show a generated placeholder derived from the title. The art is sized so the transport controls stay visible on short screens.
+- **Video.** For YouTube items the area turns 16:9 and fills the column's width, still capped so the controls stay visible. Two per-viewer buttons sit by the volume:
+  - **Theater mode** (wide screens only, remembered in the browser) makes the layout one column, with the video as wide as the page and as tall as the window allows below the header. The queue and chat move below it. It applies only while a video is playing.
+  - **Fullscreen** puts the frame holding the embed into fullscreen (never the iframe itself, and nothing is drawn over the video). It exits when a non-video track starts. It is hidden where element fullscreen isn't supported, as on iPhone.
 - **Details.** Title, artist, album, "Added by X", and a small source indicator (file, YouTube, or library). YouTube items also show a **Watch on YouTube** link, opening in a new tab.
 - **Progress bar.** Shows elapsed and total time as m:ss.
   - The displayed position comes from the **room timeline**, not from the local player, so every client's bar agrees.
@@ -535,6 +538,8 @@ On wide screens (900 px and up), the room page uses two columns: now playing on 
   | ← / → | seek back / forward 10 s |
   | Shift+← / Shift+→ | previous / next |
   | M | mute |
+  | T | theater mode (videos, wide screens) |
+  | F | fullscreen video |
   | D | toggle the debug panel |
 
 - **Debug panel.** Opened with D, or with `?debug` in the room URL (for phones). Shows the clock offset, best RTT, current drift, playback rate, correction mode, seek lead, start lead, player state, position, snapshot `rev`, and the last eight engine actions with timestamps and drift. This is essential for verifying sync.

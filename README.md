@@ -272,6 +272,8 @@ music.example.com {
 | ← / → | Seek back/forward 10 s |
 | Shift+← / Shift+→ | Previous / next |
 | M | Mute |
+| T | Theater mode (videos only; wide screens) |
+| F | Fullscreen video |
 | D | Toggle the debug panel |
 
 ## Development

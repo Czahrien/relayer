@@ -1,5 +1,6 @@
 <script lang="ts">
   import { isYouTubeLink, type LibrarySearchResult, type YouTubeResult } from "@relayer/shared";
+  import { inDiscord } from "../lib/discord.js";
   import { extractLinks } from "../lib/ingest/drop.js";
   import type { RoomClient } from "../lib/room.svelte.js";
   import Icon from "./Icon.svelte";
@@ -36,7 +37,9 @@
 
   const placeholder = $derived(
     mode === "library"
-      ? "Search songs, albums, artists, or paste a YouTube link"
+      ? inDiscord
+        ? "Search songs, albums, artists"
+        : "Search songs, albums, artists, or paste a YouTube link"
       : mode === "youtube"
         ? "Search YouTube, or paste a YouTube link"
         : "Paste a YouTube link",

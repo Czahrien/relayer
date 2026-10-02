@@ -111,6 +111,19 @@ describe("WebSocket protocol", () => {
     expect(snap.items.map((i) => i.kind)).toEqual(["file", "youtube"]);
   });
 
+  it("fails an upload its uploader reports failed, so the room doesn't wait on it", async () => {
+    const a = await connect();
+    a.send({ type: "hello", clientId: "a", name: "Ann" });
+    await a.next("snapshot");
+    a.send({ type: "addFiles", position: "end", files: [{ tempId: "t1", title: "Huge" }] });
+    const { ids } = await a.next("filesAccepted");
+    a.send({ type: "uploadFailed", itemId: ids.t1!, message: "Upload failed (500)." });
+    let snap = (await a.next("snapshot")).snapshot;
+    while (snap.items[0]?.status !== "error") snap = (await a.next("snapshot")).snapshot;
+    expect(snap.items[0]).toMatchObject({ error: "Upload failed (500)." });
+    expect(snap.playback).toBeNull();
+  });
+
   it("sends the activity log on join", async () => {
     const a = await connect();
     a.send({ type: "hello", clientId: "a", name: "Ann" });

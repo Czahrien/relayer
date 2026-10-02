@@ -612,6 +612,17 @@ describe("errors", () => {
     room.failUpload(ids.t!, "Not audio");
     expect(current()).toBe("B");
   });
+
+  it("takes an upload failure from the uploader only", () => {
+    const { room, current, addReady, state } = setup();
+    const ids = room.addFiles(alice, [{ tempId: "t", title: "Huge" }], "end");
+    addReady(["B"]);
+    room.failUpload(ids.t!, "Upload failed (500).", bob.clientId);
+    expect(state().items[0]!.status).toBe("uploading");
+    room.failUpload(ids.t!, "Upload failed (500).", alice.clientId);
+    expect(state().items[0]).toMatchObject({ status: "error", error: "Upload failed (500)." });
+    expect(current()).toBe("B");
+  });
 });
 
 describe("listeners", () => {

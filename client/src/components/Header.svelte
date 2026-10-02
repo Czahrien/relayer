@@ -1,16 +1,21 @@
 <script lang="ts">
   import type { ListenerHealth, Listener } from "@relayer/shared";
   import { tick, type Snippet } from "svelte";
+  import type { Activity } from "../lib/discord.js";
+  import { toast } from "../lib/toasts.svelte.js";
   import Icon from "./Icon.svelte";
 
   let {
     roomId,
+    activity,
     listeners,
     presence,
     selfId,
     actions,
   }: {
     roomId: string;
+    /** In a Discord Activity, a room link is replaced by an invite and "Open in browser". */
+    activity?: Activity;
     listeners: Listener[];
     presence: Record<string, ListenerHealth>;
     selfId: string;
@@ -35,6 +40,20 @@
       urlField?.focus();
       urlField?.select();
     }
+  }
+
+  async function invite() {
+    try {
+      await activity!.sdk.commands.openInviteDialog();
+    } catch {
+      // Discord refuses in DMs and without invite permission.
+      toast("Discord can't open an invite here.", "error");
+    }
+  }
+
+  function openInBrowser() {
+    // Discord asks before opening it. YouTube plays there, not inside Discord.
+    void activity!.sdk.commands.openExternalLink({ url: activity!.webUrl });
   }
 
   type Health = "good" | "fair" | "poor" | "blocked" | "unknown";
@@ -65,10 +84,19 @@
       <span class="label">Room</span>
       <span class="room-id">{roomId}</span>
     </div>
-    <button class="btn small" type="button" onclick={copyLink}>
-      <Icon name={copied ? "check" : "link"} size={18} />
-      {copied ? "Copied" : "Copy link"}
-    </button>
+    {#if activity}
+      <button class="btn small" type="button" onclick={invite}>
+        <Icon name="plus" size={18} /> Invite
+      </button>
+      <button class="btn small" type="button" onclick={openInBrowser}>
+        <Icon name="external" size={18} /> Open in browser
+      </button>
+    {:else}
+      <button class="btn small" type="button" onclick={copyLink}>
+        <Icon name={copied ? "check" : "link"} size={18} />
+        {copied ? "Copied" : "Copy link"}
+      </button>
+    {/if}
     {@render actions?.()}
   </div>
   {#if showUrl}

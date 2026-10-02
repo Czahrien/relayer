@@ -1,4 +1,5 @@
 import { EMBED_BLOCKED_MESSAGE, type QueueItem } from "@relayer/shared";
+import { inDiscord } from "../discord.js";
 import { LocalError, RecoverableError, type Player } from "./Player.js";
 
 // The slice of the IFrame Player API we use.
@@ -114,6 +115,8 @@ export class YouTubePlayer implements Player {
   async load(item: QueueItem): Promise<void> {
     const id = item.youtubeId;
     if (!id) throw new Error("This item has no YouTube video ID.");
+    // Discord's CSP blocks the embed for third-party Activities (SPEC §15); sit it out so the room can skip it.
+    if (inDiscord) throw new LocalError("YouTube can't play inside Discord.");
     this.pendingLoad?.resolve();
     this.pendingLoad = null;
     this.pendingSeekMs = null;

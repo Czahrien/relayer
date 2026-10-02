@@ -293,6 +293,8 @@ export function registerWebSocket(
         return room.ended(message.itemId);
       case "itemError":
         return room.itemError(message.itemId, message.message, message.local ? actor.clientId : undefined);
+      case "uploadFailed":
+        return room.failUpload(message.itemId, message.message, actor.clientId);
       case "status":
         return room.setHealth(actor.clientId, message.driftMs, message.state);
     }

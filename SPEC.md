@@ -222,6 +222,7 @@ The WebSocket lives at `/ws/:roomId`. Messages are JSON objects of the form `{ t
 | `reportDuration` | `itemId, durationMs` | Accepted only if the item has no `durationMs` yet. |
 | `ended` | `itemId` | The client's player finished the item. See §6.4. |
 | `itemError` | `itemId, message, local?` | The item itself can't be played (not a local network problem, §6.7). Mark it `error`, and skip it if it is current. With `local: true` (a YouTube refusal that may be this browser's alone, §6.7), record the reporter and only mark the item once every listener in the room has reported it, re-checking when a listener leaves. |
+| `uploadFailed` | `itemId, message` | The uploader's `PUT` failed somewhere the server never saw (a proxy refused it, or the network dropped). Accepted only from that item's uploader and only while it is `uploading`. Mark it `error`, and skip it if it is current. Otherwise the room would wait on it for as long as the uploader stays. |
 | `status` | `driftMs, state` | Client sync health, sent roughly every 3 s. |
 
 ### Server → client
@@ -832,6 +833,26 @@ Search YouTube from the same search box, in a YouTube tab, and add results like 
 
 ---
 
+## 15. Discord Activity
+
+Relayer can run as a Discord Activity: a web page Discord loads in an iframe in a voice channel, served from `https://<client-id>.discordsays.com/` through Discord's proxy. Research notes, the spike results, and the reasons behind these decisions are in [docs/discord-activity.md](docs/discord-activity.md).
+
+- **Same client, same rooms.** The proxy's URL mapping `/` → the server makes the client's relative `/api`, `/media`, and `/ws` URLs work unchanged, and each participant's iframe plays audio locally as a browser would. An Activity room is an ordinary room, also reachable at `/r/<roomId>`.
+- **Off unless configured.** `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN`, and `DISCORD_GUILD_IDS` together turn it on; a partial set is a startup error. Without them, the routes below don't exist and `/?frame_id=…` redirects to `/start` like any `/`. The client loads `@discord/embedded-app-sdk` with a dynamic import, only when the URL has `frame_id`, so other browsers never download it.
+- **Launch.** Discord loads `/?frame_id=…&instance_id=…`, and the server serves the app there instead of redirecting to `/start`. `/` therefore has to stay unauthenticated at the reverse proxy. The client fetches `GET /api/discord` (`{ clientId }`), waits for `sdk.ready()`, runs `authorize` (scope `identify`), posts the code to the session route, then calls `authenticate` (needed for the invite dialog). It never navigates to `/r/:roomId`, because the SDK needs the query string, and a pop-out reloads the iframe.
+- **Session route.** `POST /api/discord/session { code, instanceId }` exchanges the code (`oauth2/token`), fetches the user (`users/@me`), and fetches the instance with the bot token (`GET /applications/<id>/activity-instances/<instanceId>`). It answers `400` for a malformed body, `401` when sign-in fails, `403` when the user isn't in `instance.users` or the instance's guild isn't in `DISCORD_GUILD_IDS`, and `502` when Discord can't be reached. On success it returns `{ accessToken, roomId, name, webUrl }`. Discord says not to trust anything the client reports, so only the server-to-Discord calls count. This route is the Activity's way past `/start`'s login, and it also works with `CREATE_ROOM_ON_JOIN=false`.
+- **One room per instance.** The server maps `instanceId` → room ID and creates the room with `registry.create()`, so it has a random name. The instance ID itself is built from guessable snowflakes. Every launch and reload in that instance returns the same room. Once the room has been swept, the next launch gets a new one. `webUrl` is `https://<Host>/r/<roomId>`; Discord's proxy requests the mapping's target host, which is the server's public name.
+- **Join.** The overlay shows "Joining as <Discord name>" with no name field. The Join tap stays, because it unlocks audio (§6.7), and a reload loses that.
+- **YouTube can't play.** Discord's proxy sets the CSP per app. Third-party apps get `script-src`, `frame-src`, and `media-src` limited to their own proxy; only Discord's Watch Together is allowed `www.youtube.com`. The CSP covers every proxied response, so mapping YouTube through the proxy doesn't help, and it would mean re-serving YouTube's player. Inside Discord:
+  - `YouTubePlayer.load` throws `LocalError`, so the listener sits the item out and the room skips it once everyone has failed (§6.5). An all-Discord room moves straight on.
+  - The toast points to **Open in browser** (`openExternalLink` with `webUrl`).
+  - The YouTube search tab and YouTube links are refused, and the search box appears only when the library is on.
+- **Header.** **Copy link** becomes **Invite** (`openInviteDialog`, which fails in DMs and without invite permission, shown as a toast) and **Open in browser**.
+- **Drag and drop** doesn't reach the iframe (Discord takes dropped files), so the "drop them anywhere" hint is hidden; the file and folder buttons work.
+- **Uploads are capped at 128 MiB** by Discord's proxy. Larger bodies get Discord's own `500` page and never reach the server (measured 2026-10-02: 127 MiB passes). Inside Discord, the client refuses such files before adding them and points to **Open in browser**. Anything that slips through is reported with `uploadFailed` (§5).
+
+---
+
 ## Stretch list
 
 - Persist room snapshots to `DATA_DIR`, and reload them on startup.
@@ -843,3 +864,4 @@ Search YouTube from the same search box, in a YouTube tab, and add results like 
 - A link to the third-party license notices from the UI.
 - Publish images to GHCR.
 - Add optional host-only controls for a room.
+- A layout pass for phone-sized screens, in browsers and the Discord Activity. Known issues: the header's room name gets squeezed and wraps across several lines (seen in Discord on iOS, 2026-10-02), and the Activity's picture-in-picture view shows only a sliver of the progress bar. For PIP, `subscribeToLayoutModeUpdatesCompat` reports the layout mode, so the Activity can switch to a compact art-and-title view.

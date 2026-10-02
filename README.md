@@ -90,6 +90,9 @@ server on the internet:
 - **Anyone who can reach the server can start a room**, unless you put `/start`
   behind a login at your reverse proxy (see [Restricting who can start
   rooms](#restricting-who-can-start-rooms)).
+- **With the [Discord Activity](#discord-activity) on, members of the Discord
+  servers in `DISCORD_GUILD_IDS` can start rooms too**, by launching it.
+  Relayer checks with Discord that they're really in the Activity.
 - **Uploads are limited:** by file (`MAX_UPLOAD_MB`), by room (`MAX_ROOM_MB`),
   and by keeping 512 MB of disk free. Empty rooms and their uploads are deleted
   after `ROOM_IDLE_TTL_MIN`, and nothing survives a restart.
@@ -113,6 +116,10 @@ Environment variables:
 | `LIBRARY_DIR` | unset | A music folder rooms can search and play from. Unset disables the library. |
 | `LIBRARY_RESCAN_MIN` | `360` | Minutes between library rescans. |
 | `YOUTUBE_API_KEY` | unset | A YouTube Data API key, for YouTube search and playlist links. See [YouTube search](#youtube-search). |
+| `DISCORD_CLIENT_ID` | unset | Your Discord app's ID. Turns on the [Discord Activity](#discord-activity); needs the three below as well. |
+| `DISCORD_CLIENT_SECRET` | unset | The app's OAuth2 client secret. |
+| `DISCORD_BOT_TOKEN` | unset | The app's bot token, used only to check that people really are in the Activity. |
+| `DISCORD_GUILD_IDS` | unset | Comma-separated IDs of the Discord servers allowed to use the Activity. |
 | `CREATE_ROOM_ON_JOIN` | `true` | Whether opening a link to an unknown room creates it, so links keep working after a restart. Set to `false` when `/start` is behind a login. |
 
 With Docker Compose, you can also set these (and `HOST_PORT`, the port on your
@@ -188,6 +195,46 @@ project; searches run when you press Enter, repeats within 10 minutes are
 cached, and each room can search about once every 2 minutes after a first
 burst of 10. Playlists and pasted links use a separate, much larger allowance.
 When searches run out for the day, pasting links still works.
+
+## Discord Activity
+
+Relayer can run as a Discord Activity: people in a voice channel launch it from
+the App Launcher (the rocket button) and listen together without leaving
+Discord. Each launch gets its own room, and the room's name comes from Discord.
+Everyone who joins that Activity lands in the same room, signed in under their
+Discord name.
+
+- **No YouTube inside Discord.** Discord only lets its own Watch Together load
+  YouTube's player in an Activity. YouTube tracks are skipped for Discord
+  listeners. **Open in browser** opens the same room in a normal browser, where
+  they play.
+- **Add files with the buttons.** Discord keeps dropped files for itself, and
+  its proxy refuses uploads of 128 MB or more. Add bigger files from the
+  browser.
+- **It's an ordinary room**, so people outside Discord can join it from the
+  browser link too.
+
+To set it up:
+
+1. In the [Discord Developer Portal](https://discord.com/developers/applications),
+   create an application.
+2. Under **Activities → Settings**, enable Activities and pick the platforms
+   (web, iOS, Android).
+3. Under **Activities → URL Mappings**, map `/` to your server's public name
+   (for example `relayer.example.com`, without `https://`).
+4. Under **OAuth2**, copy the client ID and secret, and add the redirect
+   `https://127.0.0.1` (the portal requires one).
+5. Under **Bot**, reset and copy the token. The bot never joins voice or needs
+   any intents.
+6. Under **Installation**, turn off **User Install**, so only servers you add
+   it to can launch it. Then install it to your Discord server.
+7. Set the four `DISCORD_*` variables. Turn on Developer Mode in Discord and
+   right-click your server to copy its ID for `DISCORD_GUILD_IDS`. Restart.
+
+`/` must stay reachable without a login, since Discord loads `/?frame_id=…`
+from it; the Caddy example below only guards `/start`. Without the `DISCORD_*`
+variables none of this is active, and browsers outside Discord never download
+Discord's SDK.
 
 ## Deploying
 

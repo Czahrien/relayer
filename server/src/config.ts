@@ -14,6 +14,16 @@ export interface Config {
   libraryRescanMs: number;
   /** YouTube Data API key for search and playlists (SPEC §14); undefined disables them. */
   youtubeApiKey?: string;
+  /** Discord Activity (SPEC §15); undefined disables it. */
+  discord?: DiscordConfig;
+}
+
+export interface DiscordConfig {
+  clientId: string;
+  clientSecret: string;
+  botToken: string;
+  /** Only Activities launched in these Discord servers may create rooms. */
+  guildIds: Set<string>;
 }
 
 function positiveNumber(name: string, fallback: number): number {
@@ -39,6 +49,18 @@ function boolean(name: string, fallback: boolean): boolean {
   throw new Error(`${name} must be true or false, got "${process.env[name]}"`);
 }
 
+function discordConfig(): DiscordConfig | undefined {
+  const clientId = process.env.DISCORD_CLIENT_ID?.trim();
+  if (!clientId) return undefined;
+  const clientSecret = process.env.DISCORD_CLIENT_SECRET?.trim();
+  const botToken = process.env.DISCORD_BOT_TOKEN?.trim();
+  const guildIds = new Set((process.env.DISCORD_GUILD_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean));
+  if (!clientSecret || !botToken || guildIds.size === 0) {
+    throw new Error("DISCORD_CLIENT_ID also needs DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, and DISCORD_GUILD_IDS");
+  }
+  return { clientId, clientSecret, botToken, guildIds };
+}
+
 export function loadConfig(): Config {
   return {
     port: positiveNumber("PORT", 3000),
@@ -50,5 +72,6 @@ export function loadConfig(): Config {
     libraryDir: process.env.LIBRARY_DIR ? path.resolve(process.env.LIBRARY_DIR) : undefined,
     libraryRescanMs: positiveNumber("LIBRARY_RESCAN_MIN", 360) * 60 * 1000,
     youtubeApiKey: process.env.YOUTUBE_API_KEY?.trim() || undefined,
+    discord: discordConfig(),
   };
 }

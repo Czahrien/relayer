@@ -144,6 +144,22 @@ export interface YouTubeStatus {
   enabled: boolean;
 }
 
+// ---- Discord Activity (SPEC §15) ----
+
+/** GET /api/discord, which exists only when the server has Discord configured. */
+export interface DiscordConfig {
+  clientId: string;
+}
+
+/** POST /api/discord/session { code, instanceId } */
+export interface DiscordSession {
+  /** For the SDK's authenticate command. */
+  accessToken: string;
+  roomId: string;
+  name: string;
+  webUrl: string;
+}
+
 // ---- Client → server ----
 
 export type ClientMessage =
@@ -173,6 +189,8 @@ export type ClientMessage =
    * broken once every listener in the room has reported it.
    */
   | { type: "itemError"; itemId: string; message: string; local?: boolean }
+  /** The uploader's PUT failed somewhere the server didn't see, e.g. a proxy refused it (SPEC §5). */
+  | { type: "uploadFailed"; itemId: string; message: string }
   | { type: "status"; driftMs: number | null; state: ListenerSyncState };
 
 export type ClientMessageType = ClientMessage["type"];

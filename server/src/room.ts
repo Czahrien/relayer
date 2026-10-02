@@ -490,9 +490,10 @@ export class Room {
     return true;
   }
 
-  failUpload(itemId: string, message: string): void {
+  /** `by`: a client reporting its own upload failed; anyone else's report is ignored. */
+  failUpload(itemId: string, message: string, by?: string): void {
     const item = this.pendingUpload(itemId);
-    if (!item) return;
+    if (!item || (by !== undefined && this.uploaders.get(itemId) !== by)) return;
     this.uploaders.delete(itemId);
     this.markError(item, message);
     this.log("", `couldn't add “${item.title}”: ${message}`);

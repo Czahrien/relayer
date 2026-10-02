@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { inDiscord } from "../lib/discord.js";
   import { collectFromFileList } from "../lib/ingest/drop.js";
   import type { RoomClient } from "../lib/room.svelte.js";
   import Icon from "./Icon.svelte";
@@ -20,7 +21,10 @@
 </script>
 
 <div class="add">
-  <SearchBox {client} />
+  <!-- In Discord the box only searches the library: YouTube links can't play there. -->
+  {#if !inDiscord || client.libraryStatus?.enabled}
+    <SearchBox {client} />
+  {/if}
   <div class="pickers">
     <button class="btn small" type="button" onclick={() => fileInput?.click()}>
       <Icon name="file" size={18} /> Add files
@@ -30,7 +34,10 @@
         <Icon name="folder" size={18} /> Add a folder
       </button>
     {/if}
-    <span class="hint">or drop them anywhere</span>
+    {#if !inDiscord}
+      <!-- Discord takes dropped files for itself; they never reach the Activity. -->
+      <span class="hint">or drop them anywhere</span>
+    {/if}
   </div>
   <input
     bind:this={fileInput}

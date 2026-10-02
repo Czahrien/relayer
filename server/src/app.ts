@@ -5,6 +5,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import type { Config } from "./config.js";
+import { registerDiscordRoutes } from "./discordRoutes.js";
 import { Library } from "./library/library.js";
 import { LocalDirSource } from "./library/source.js";
 import { registerLibraryRoutes } from "./libraryRoutes.js";
@@ -26,6 +27,8 @@ export interface AppOptions {
   freeDiskBytes?: () => Promise<number>;
   /** The YouTube Data API, for tests (defaults to one using YOUTUBE_API_KEY). */
   youtubeData?: YouTubeData | null;
+  /** fetch for Discord's API, for tests. */
+  discordFetch?: typeof fetch;
 }
 
 export interface App {
@@ -68,7 +71,13 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
   // authentication: GET /start is the start page, and its form POSTs back to
   // /start. It is a plain form navigation, not fetch, so an auth portal's login
   // redirect works. Everything else (rooms, sockets, media, uploads) stays public.
-  app.get("/", async (_request, reply) => reply.redirect("/start"));
+  // A Discord Activity loads "/?frame_id=…" (SPEC §15); it gets the app, not /start.
+  const serveClient = options.serveClient && existsSync(path.join(clientDist, "index.html"));
+  app.get<{ Querystring: { frame_id?: string } }>("/", async (request, reply) =>
+    request.query.frame_id && config.discord && serveClient
+      ? reply.type("text/html").sendFile("index.html")
+      : reply.redirect("/start"),
+  );
   // For the Docker healthcheck; not logged, so it doesn't fill the logs every 30 s.
   app.get("/healthz", { logLevel: "silent" }, async () => ({ ok: true }));
   void app.register(async (scope) => {
@@ -96,6 +105,7 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
   const youtubeData =
     options.youtubeData !== undefined ? options.youtubeData : config.youtubeApiKey ? new YouTubeData(config.youtubeApiKey) : null;
   registerYoutubeRoutes(app, registry, youtubeData);
+  if (config.discord) registerDiscordRoutes(app, registry, config.discord, options.discordFetch);
   registerWebSocket(app, registry, hub, options.youtube ?? createYoutubeResolver(), {
     createRoomOnJoin: config.createRoomOnJoin,
     library,
@@ -103,8 +113,8 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
     youtubeData,
   });
 
-  if (options.serveClient && existsSync(path.join(clientDist, "index.html"))) {
-    // `index: false` leaves "/" to the redirect above.
+  if (serveClient) {
+    // `index: false` leaves "/" to the route above.
     await app.register(fastifyStatic, { root: clientDist, wildcard: false, index: false });
     // Client-side routes (/start, /r/:roomId) fall back to the single-page app.
     app.setNotFoundHandler((request, reply) => {

@@ -11,6 +11,7 @@ import {
   type YouTubeResult,
 } from "@relayer/shared";
 import { prepareFiles, type IngestRequest, type PreparedFile } from "./ingest/drop.js";
+import { DISCORD_MAX_UPLOAD_BYTES, inDiscord } from "./discord.js";
 import { UploadQueue } from "./ingest/upload.js";
 import { LibraryApi } from "./library.js";
 import { roomOutOfView, showNotification } from "./notifications.js";
@@ -123,7 +124,12 @@ export class RoomClient {
         const { [itemId]: _, ...rest } = this.uploadProgress;
         this.uploadProgress = rest;
       },
-      onError: (_itemId, message) => toast(message, "error"),
+      onError: (itemId, message) => {
+        toast(message, "error");
+        // A failure the server never saw (a proxy refused it, the network dropped) would leave the
+        // item waiting forever; the server ignores this when it already failed the upload itself.
+        this.socket.send({ type: "uploadFailed", itemId, message });
+      },
     });
     this.applyVolume();
   }
@@ -214,6 +220,10 @@ export class RoomClient {
     const title = this.snapshot?.items.find((item) => item.id === itemId)?.title ?? "This video";
     // YouTube refuses many videos to pages opened by IP address; a hostname works.
     const byAddress = /^[\d.]+$|^\[[\da-f:]+\]$/i.test(location.hostname);
+    if (inDiscord) {
+      toast(`“${title}” can't play inside Discord. Use “Open in browser” to hear YouTube tracks.`, "error", 10_000);
+      return;
+    }
     const hint = byAddress
       ? "YouTube refuses many videos on pages opened by IP address. Open this room by the server's name instead."
       : "It may be playing for the others. Browser extensions that remove referrers can cause this.";
@@ -236,6 +246,7 @@ export class RoomClient {
   }
 
   private async refreshYoutubeStatus(): Promise<void> {
+    if (inDiscord) return; // YouTube can't play here, so don't offer to search it
     try {
       this.youtubeSearch = (await this.youtube.status()).enabled;
     } catch {
@@ -262,14 +273,27 @@ export class RoomClient {
   async ingest(request: IngestRequest, position: AddPosition = "end"): Promise<void> {
     let rejectedLinks = 0;
     for (const link of request.links) {
-      if (isYouTubeLink(link)) this.send({ type: "addYoutube", url: link, position });
+      if (isYouTubeLink(link) && !inDiscord) this.send({ type: "addYoutube", url: link, position });
       else rejectedLinks++;
     }
-    if (rejectedLinks > 0) toast("Only YouTube links are supported.", "error");
+    if (rejectedLinks > 0) {
+      toast(inDiscord ? "YouTube links can't play inside Discord." : "Only YouTube links are supported.", "error");
+    }
+
+    let files = request.files;
+    if (inDiscord) {
+      const tooBig = files.filter((f) => f.file.size >= DISCORD_MAX_UPLOAD_BYTES);
+      if (tooBig.length > 0) {
+        files = files.filter((f) => !tooBig.includes(f));
+        const what = tooBig.length === 1 ? `“${tooBig[0]!.file.name}” is` : `${tooBig.length} files are`;
+        toast(`${what} too big to upload from inside Discord (127 MB at most). Use “Open in browser” to add them.`, "error", 10_000);
+        if (files.length === 0) return;
+      }
+    }
 
     const skipped = request.skipped;
     const skippedText = skipped > 0 ? `skipped ${skipped} non-audio ${skipped === 1 ? "file" : "files"}` : "";
-    if (request.files.length === 0) {
+    if (files.length === 0) {
       if (skipped > 0) toast(`No audio files found; ${skippedText}.`, "error");
       return;
     }
@@ -278,7 +302,7 @@ export class RoomClient {
       return;
     }
 
-    const prepared = await prepareFiles(request.files);
+    const prepared = await prepareFiles(files);
     let ids: Record<string, string>;
     const tempIds = prepared.map(() => `t${++this.tempCounter}`);
     try {

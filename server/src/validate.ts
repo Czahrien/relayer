@@ -145,6 +145,12 @@ export function parseClientMessage(raw: string): ClientMessage {
         message: cleanText(str(o, "message", 1000), 200),
         ...(o.local === true ? { local: true } : {}),
       };
+    case "uploadFailed":
+      return {
+        type: "uploadFailed",
+        itemId: str(o, "itemId", 64),
+        message: cleanText(str(o, "message", 1000), 200),
+      };
     case "status": {
       const state = o.state as ListenerSyncState;
       if (!SYNC_STATES.includes(state)) throw new CommandError("Invalid state.");

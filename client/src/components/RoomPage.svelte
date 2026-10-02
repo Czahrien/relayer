@@ -3,6 +3,7 @@
   import { effectivePositionAt } from "@relayer/shared";
   import { registerMediaSessionHandlers, updateMediaSession } from "../lib/mediaSession.js";
   import { collectFromDataTransfer, collectFromFileList, extractLinks } from "../lib/ingest/drop.js";
+  import type { Activity } from "../lib/discord.js";
   import { RoomClient } from "../lib/room.svelte.js";
   import { getClientId, prefs } from "../lib/storage.js";
   import RoomChat from "./RoomChat.svelte";
@@ -17,7 +18,8 @@
   import RoomMissing from "./RoomMissing.svelte";
   import SiteFooter from "./SiteFooter.svelte";
 
-  let { roomId }: { roomId: string } = $props();
+  /** `activity` is set when running as a Discord Activity (SPEC §15). */
+  let { roomId, activity }: { roomId: string; activity?: Activity } = $props();
   let client: RoomClient | null = $state(null);
   /** null while checking; a network failure counts as "exists" and lets the socket decide. */
   let exists = $state<boolean | null>(null);
@@ -196,11 +198,12 @@
 {:else if exists === null}
   <!-- checking the room -->
 {:else if !client}
-  <JoinOverlay {roomId} onjoin={join} />
+  <JoinOverlay {roomId} discordName={activity?.name} onjoin={join} />
 {:else}
   <div class="page">
     <Header
       {roomId}
+      {activity}
       listeners={client.snapshot?.listeners ?? []}
       presence={client.presence}
       selfId={client.clientId}

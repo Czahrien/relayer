@@ -19,6 +19,8 @@ export default defineConfig({
       "/start": { target: server, bypass: (req) => (req.method === "POST" ? undefined : req.url) },
       "/api": server,
       "/media": server,
+      "/privacy": server,
+      "/terms": server,
       "/ws": { target: server, ws: true },
     },
   },

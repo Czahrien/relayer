@@ -6,6 +6,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import type { Config } from "./config.js";
 import { registerDiscordRoutes } from "./discordRoutes.js";
+import { registerLegalRoutes } from "./legal.js";
 import { Library } from "./library/library.js";
 import { LocalDirSource } from "./library/source.js";
 import { registerLibraryRoutes } from "./libraryRoutes.js";
@@ -78,6 +79,7 @@ export async function buildApp(config: Config, options: AppOptions = {}): Promis
       ? reply.type("text/html").sendFile("index.html")
       : reply.redirect("/start"),
   );
+  registerLegalRoutes(app, config);
   // For the Docker healthcheck; not logged, so it doesn't fill the logs every 30 s.
   app.get("/healthz", { logLevel: "silent" }, async () => ({ ok: true }));
   void app.register(async (scope) => {

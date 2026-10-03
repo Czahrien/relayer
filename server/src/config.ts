@@ -14,6 +14,8 @@ export interface Config {
   libraryRescanMs: number;
   /** YouTube Data API key for search and playlists (SPEC §14); undefined disables them. */
   youtubeApiKey?: string;
+  /** How to reach whoever runs this server, shown on /privacy and /terms (an email address, URL, or text). */
+  operatorContact?: string;
   /** Discord Activity (SPEC §15); undefined disables it. */
   discord?: DiscordConfig;
 }
@@ -72,6 +74,7 @@ export function loadConfig(): Config {
     libraryDir: process.env.LIBRARY_DIR ? path.resolve(process.env.LIBRARY_DIR) : undefined,
     libraryRescanMs: positiveNumber("LIBRARY_RESCAN_MIN", 360) * 60 * 1000,
     youtubeApiKey: process.env.YOUTUBE_API_KEY?.trim() || undefined,
+    operatorContact: process.env.OPERATOR_CONTACT?.trim() || undefined,
     discord: discordConfig(),
   };
 }

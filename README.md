@@ -116,6 +116,7 @@ Environment variables:
 | `LIBRARY_DIR` | unset | A music folder rooms can search and play from. Unset disables the library. |
 | `LIBRARY_RESCAN_MIN` | `360` | Minutes between library rescans. |
 | `YOUTUBE_API_KEY` | unset | A YouTube Data API key, for YouTube search and playlist links. See [YouTube search](#youtube-search). |
+| `OPERATOR_CONTACT` | unset | How people can reach you (an email address, URL, or text), shown on the `/privacy` and `/terms` pages. |
 | `DISCORD_CLIENT_ID` | unset | Your Discord app's ID. Turns on the [Discord Activity](#discord-activity); needs the three below as well. |
 | `DISCORD_CLIENT_SECRET` | unset | The app's OAuth2 client secret. |
 | `DISCORD_BOT_TOKEN` | unset | The app's bot token, used only to check that people really are in the Activity. |
@@ -226,9 +227,21 @@ To set it up:
    `https://127.0.0.1` (the portal requires one).
 5. Under **Bot**, reset and copy the token. The bot never joins voice or needs
    any intents.
-6. Under **Installation**, turn off **User Install**, so only servers you add
+6. Under **General Information**, set the Terms of Service URL to
+   `https://<your server>/terms` and the Privacy Policy URL to
+   `https://<your server>/privacy`. Relayer serves both pages, written from
+   the server's settings. Set `OPERATOR_CONTACT` so they say how to reach you.
+   If Discord won't accept links to your domain, write static copies and host
+   them elsewhere, such as GitHub Pages. Run this with the server's environment
+   variables, since the pages are written from them:
+
+   ```sh
+   npm run legal-pages -- https://relayer.example.com --out site
+   docker compose exec relayer node server/dist/tools/legalPages.js https://relayer.example.com --out /tmp/site
+   ```
+7. Under **Installation**, turn off **User Install**, so only servers you add
    it to can launch it. Then install it to your Discord server.
-7. Set the four `DISCORD_*` variables. Turn on Developer Mode in Discord and
+8. Set the four `DISCORD_*` variables. Turn on Developer Mode in Discord and
    right-click your server to copy its ID for `DISCORD_GUILD_IDS`. Restart.
 
 `/` must stay reachable without a login, since Discord loads `/?frame_id=…`

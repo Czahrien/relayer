@@ -3,7 +3,9 @@
 <footer>
   <a href="https://github.com/czahrien/relayer">Relayer</a> is free software under the MIT
   License ·
-  <a href="/third-party-licenses.txt">Third-party licenses</a>
+  <a href="/third-party-licenses.txt">Third-party licenses</a> ·
+  <a href="/privacy">Privacy</a> ·
+  <a href="/terms">Terms</a>
 </footer>
 
 <style>

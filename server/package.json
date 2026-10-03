@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "tsx watch --conditions=source src/index.ts",
     "build": "tsc -b",
-    "library-report": "tsx --conditions=source src/tools/libraryReport.ts"
+    "library-report": "tsx --conditions=source src/tools/libraryReport.ts",
+    "legal-pages": "tsx --conditions=source src/tools/legalPages.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.5",

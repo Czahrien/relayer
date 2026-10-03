@@ -9,7 +9,18 @@
 
 <main>
   <div class="record" aria-hidden="true">
-    <div class="label"></div>
+    <!-- Printed off-centre like a real label, so the spin shows. -->
+    <svg class="label" viewBox="0 0 100 100">
+      <path id="label-arc" d="M 15 50 A 35 35 0 0 1 85 50" fill="none" />
+      <!-- Runs left to right under the hole, so its letters stand upright inside the arc. -->
+      <path id="label-arc-low" d="M 13 50 A 37 37 0 0 0 87 50" fill="none" />
+      <circle class="rule" cx="50" cy="50" r="48" />
+      <circle class="rule" cx="50" cy="50" r="11" />
+      <text><textPath href="#label-arc" startOffset="50%" text-anchor="middle">RELAYER</textPath></text>
+      <text class="fine">
+        <textPath href="#label-arc-low" startOffset="50%" text-anchor="middle">SIDE A · 33⅓ RPM</textPath>
+      </text>
+    </svg>
   </div>
   <h1>Relayer</h1>
   <p class="lede">
@@ -51,7 +62,40 @@
     width: 40%;
     aspect-ratio: 1;
     border-radius: 50%;
-    background: radial-gradient(circle, var(--bg) 0 6%, var(--accent) 7%);
+    background:
+      radial-gradient(circle, var(--bg) 0 6%, transparent 7%),
+      /* Bands step toward --ink: darker in light mode, lighter in dark mode. */
+      linear-gradient(
+        var(--accent) 0 56%,
+        color-mix(in oklab, var(--accent), var(--ink) 8%) 56% 64%,
+        color-mix(in oklab, var(--accent), var(--ink) 16%) 64% 72%,
+        color-mix(in oklab, var(--accent), var(--ink) 24%) 72% 80%,
+        color-mix(in oklab, var(--accent), var(--ink) 32%) 80%
+      );
+  }
+
+  /* In viewBox units: the label is 100 across, so 15 is about 8px. */
+  .label text {
+    fill: var(--accent-ink);
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+  }
+
+  .label .fine {
+    font-family: var(--font-ui);
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    opacity: 0.75;
+  }
+
+  .rule {
+    fill: none;
+    stroke: var(--accent-ink);
+    stroke-width: 0.8;
+    opacity: 0.35;
   }
 
   h1 {
@@ -72,6 +116,12 @@
   .btn {
     margin-top: 8px;
     min-width: 200px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .record {
+      animation: none;
+    }
   }
 
   @keyframes spin {

@@ -439,13 +439,20 @@
   /* Discord's picture-in-picture view is a fixed frame of about 480×270, with
      nothing else on the page (RoomPage): art as tall as the frame, details trimmed. */
   @media (max-height: 320px) {
+    /* Rows: space, details and progress (centred beside the art), space. */
     :global(html.discord) .now-playing {
-      gap: 4px 16px;
-      align-content: center;
+      grid-template-rows: 1fr auto 1fr;
+      gap: 6px 16px;
     }
 
+    :global(html.discord) .details {
+      align-self: end;
+    }
+
+    /* As tall as the frame, but always leave 170px beside it for the details. */
     :global(html.discord) .art-frame:not(:fullscreen) {
-      width: calc(100dvh - 24px);
+      grid-row: 1 / 4;
+      width: min(100dvh - 24px, 100vw - 210px);
       border-radius: var(--radius);
     }
 
@@ -461,16 +468,13 @@
       white-space: nowrap;
     }
 
+    /* Discord's PIP isn't interactive, so the controls go too. */
     :global(html.discord) .source,
     :global(html.discord) .watch,
-    :global(html.discord) .volume {
+    :global(html.discord) .controls {
       display: none;
     }
 
-    :global(html.discord) .play {
-      width: 44px;
-      height: 44px;
-    }
   }
 
   input[type="range"] {

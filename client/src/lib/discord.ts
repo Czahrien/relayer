@@ -3,6 +3,8 @@ import type { DiscordConfig, DiscordSession } from "@relayer/shared";
 
 /** Discord adds frame_id (with instance_id and others) to an Activity's URL (SPEC §15). */
 export const inDiscord = new URLSearchParams(location.search).has("frame_id");
+// Lets CSS adapt to Discord's frames, e.g. the fixed-size picture-in-picture view.
+if (inDiscord) document.documentElement.classList.add("discord");
 
 /** Discord's proxy fails request bodies from 128 MiB up (measured 2026-10-02), before they reach the server. */
 export const DISCORD_MAX_UPLOAD_BYTES = 128 * 1024 * 1024;

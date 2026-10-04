@@ -1,5 +1,6 @@
 <script lang="ts">
   import { isYouTubeLink, type LibrarySearchResult, type YouTubeResult } from "@relayer/shared";
+  import { MediaQuery } from "svelte/reactivity";
   import { inDiscord } from "../lib/discord.js";
   import { extractLinks } from "../lib/ingest/drop.js";
   import type { RoomClient } from "../lib/room.svelte.js";
@@ -35,13 +36,17 @@
   const searching = $derived(mode === "library" && !isLink && trimmed.length > 0);
   const ytShown = $derived(mode === "youtube" && !isLink && trimmed.length > 0);
 
+  // Phones only fit about 30 characters; pasting links still works there.
+  const narrow = new MediaQuery("max-width: 520px");
   const placeholder = $derived(
     mode === "library"
-      ? inDiscord
+      ? inDiscord || narrow.current
         ? "Search songs, albums, artists"
         : "Search songs, albums, artists, or paste a YouTube link"
       : mode === "youtube"
-        ? "Search YouTube, or paste a YouTube link"
+        ? narrow.current
+          ? "Search YouTube"
+          : "Search YouTube, or paste a YouTube link"
         : "Paste a YouTube link",
   );
 

@@ -496,7 +496,7 @@ On wide screens (900 px and up), the room page uses two columns: now playing on 
 ### Header
 
 - **Room identity.** The room name.
-- **Copy link.** A button that copies the room URL. `navigator.clipboard` needs HTTPS or localhost, so fall back to showing the URL selected in a text field.
+- **Copy link.** A button that copies the room URL. `navigator.clipboard` needs HTTPS or localhost, so fall back to showing the URL selected in a text field. Below 520px wide it shows its icon only, with an `aria-label`, so the room name keeps to one line on phones. The Activity's Invite and Open in browser buttons do the same.
 - **Listeners.** A list of names, each with a sync-health dot:
   - green: within 100 ms
   - yellow: within 500 ms
@@ -505,6 +505,8 @@ On wide screens (900 px and up), the room page uses two columns: now playing on 
 ### Now playing
 
 - **Art.** A large area showing the embedded cover for files or the video for YouTube items. When there is no art, show a generated placeholder derived from the title. The art is sized so the transport controls stay visible on short screens.
+  - **Phones upright** (narrower than 900px, portrait): the art fills the width, up to 560px, and the controls follow below it.
+  - **Short landscape screens** (at most 500px tall, e.g. a phone on its side): the art (180px) sits beside the title, progress bar, and transport, so the controls stay on screen without scrolling. A video frame is 356px wide there, keeping the embed at least 200px tall (§6.7).
 - **Video.** For YouTube items the area turns 16:9 and fills the column's width, still capped so the controls stay visible. Two per-viewer buttons sit by the volume:
   - **Theater mode** (wide screens only, remembered in the browser) makes the layout one column, with the video as wide as the page and as tall as the window allows below the header. The queue and chat move below it. It applies only while a video is playing.
   - **Fullscreen** puts the frame holding the embed into fullscreen (never the iframe itself, and nothing is drawn over the video). It exits when a non-video track starts. It is hidden where element fullscreen isn't supported, as on iPhone.
@@ -679,7 +681,7 @@ interface LibrarySource {
 
 ### 10.5 UI
 
-- **One search box** replaces "Paste a YouTube link". Text that looks like a link (a YouTube URL, or anything starting with `http(s)://` or `www.`) is added on Enter or with an **Add video** button; anything else is a search. Escape clears it. Without a library, the box is the plain link field it was before.
+- **One search box** replaces "Paste a YouTube link". Text that looks like a link (a YouTube URL, or anything starting with `http(s)://` or `www.`) is added on Enter or with an **Add video** button; anything else is a search. Escape clears it. Without a library, the box is the plain link field it was before. Below 520px wide the placeholder drops "or paste a YouTube link" so it isn't cut off, though pasting still works.
 - **Tabs:** **Library**, shown when the library is enabled, and later **YouTube** (§14), each shown only when configured. Library searches as you type (debounced ~150 ms); YouTube searches on Enter to protect its quota.
 - **Library results** are grouped into Artists, Albums, and Songs, in a panel that scrolls on its own (up to 60% of the viewport) so the queue stays reachable:
   - songs and albums each have **Add** and **Play next**, confirmed with a short toast;
@@ -849,6 +851,7 @@ Relayer can run as a Discord Activity: a web page Discord loads in an iframe in 
   - The toast points to **Open in browser** (`openExternalLink` with `webUrl`).
   - The YouTube search tab and YouTube links are refused, and the search box appears only when the library is on.
 - **Header.** **Copy link** becomes **Invite** (`openInviteDialog`, which fails in DMs and without invite permission, shown as a toast) and **Open in browser**.
+- **Picture-in-picture.** Discord's PIP frame is about 480×270 and can't be resized. `discord.ts` puts a `discord` class on `<html>`, and under `(max-height: 320px)` the room shows only the player: art on the left, then the title (two lines at most), album, progress, and transport. The header, queue, chat, footer, toasts, volume, and scrollbars are hidden. The check is size-based, so it also covers a fixed-size pop-out, and the class keeps browsers out of it, since YouTube's 200×200 minimum (§6.7) rules this layout out where videos play. Inside Discord, YouTube items show their art (or its placeholder) instead of the empty embed.
 - **Drag and drop** doesn't reach the iframe (Discord takes dropped files), so the "drop them anywhere" hint is hidden; the file and folder buttons work.
 - **Uploads are capped at 128 MiB** by Discord's proxy. Larger bodies get Discord's own `500` page and never reach the server (measured 2026-10-02: 127 MiB passes). Inside Discord, the client refuses such files before adding them and points to **Open in browser**. Anything that slips through is reported with `uploadFailed` (§5).
 
@@ -865,4 +868,3 @@ Relayer can run as a Discord Activity: a web page Discord loads in an iframe in 
 - A link to the third-party license notices from the UI.
 - Publish images to GHCR.
 - Add optional host-only controls for a room.
-- A layout pass for phone-sized screens, in browsers and the Discord Activity. Known issues: the header's room name gets squeezed and wraps across several lines (seen in Discord on iOS, 2026-10-02), and the Activity's picture-in-picture view shows only a sliver of the progress bar. For PIP, `subscribeToLayoutModeUpdatesCompat` reports the layout mode, so the Activity can switch to a compact art-and-title view.

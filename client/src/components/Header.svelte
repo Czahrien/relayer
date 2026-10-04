@@ -85,16 +85,16 @@
       <span class="room-id">{roomId}</span>
     </div>
     {#if activity}
-      <button class="btn small" type="button" onclick={invite}>
-        <Icon name="plus" size={18} /> Invite
+      <button class="btn small" type="button" aria-label="Invite" onclick={invite}>
+        <Icon name="plus" size={18} /> <span class="btn-text">Invite</span>
       </button>
-      <button class="btn small" type="button" onclick={openInBrowser}>
-        <Icon name="external" size={18} /> Open in browser
+      <button class="btn small" type="button" aria-label="Open in browser" onclick={openInBrowser}>
+        <Icon name="external" size={18} /> <span class="btn-text">Open in browser</span>
       </button>
     {:else}
-      <button class="btn small" type="button" onclick={copyLink}>
+      <button class="btn small" type="button" aria-label={copied ? "Copied" : "Copy link"} onclick={copyLink}>
         <Icon name={copied ? "check" : "link"} size={18} />
-        {copied ? "Copied" : "Copy link"}
+        <span class="btn-text">{copied ? "Copied" : "Copy link"}</span>
       </button>
     {/if}
     {@render actions?.()}
@@ -166,6 +166,18 @@
     font-weight: 620;
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
+  }
+
+  /* Phones: icon-only room buttons, so the room name keeps to one line. */
+  @media (max-width: 520px) {
+    .btn-text {
+      display: none;
+    }
+
+    .identity .btn {
+      width: 36px;
+      padding: 0;
+    }
   }
 
   .manual-copy {

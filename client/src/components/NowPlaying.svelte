@@ -1,5 +1,6 @@
 <script lang="ts">
   import { effectivePositionAt, youtubeWatchUrl } from "@relayer/shared";
+  import { inDiscord } from "../lib/discord.js";
   import type { RoomClient } from "../lib/room.svelte.js";
   import Art from "./Art.svelte";
   import Icon from "./Icon.svelte";
@@ -26,7 +27,8 @@
   const position = $derived(pb && item ? effectivePositionAt(pb, now, item.durationMs) : 0);
   const playing = $derived(pb?.state === "playing");
   const canPrevious = $derived((snap?.items.length ?? 0) > 0);
-  const showVideo = $derived(item?.kind === "youtube" && item.status === "ready");
+  // YouTube can't play inside Discord (SPEC §15), so show its art rather than an empty black frame.
+  const showVideo = $derived(item?.kind === "youtube" && item.status === "ready" && !inDiscord);
 
   let ytHost: HTMLDivElement | undefined = $state();
   $effect(() => {
@@ -391,6 +393,84 @@
     display: flex;
     align-items: center;
     gap: 4px;
+  }
+
+  /* Phones held upright: the height-based cap above is for desktops; fill the width instead. */
+  @media (max-width: 899px) and (orientation: portrait) {
+    .art-frame {
+      max-width: 560px;
+    }
+
+    .art-frame.video-frame {
+      max-width: none;
+    }
+  }
+
+  /* Short landscape screens (phones on their side, Discord's picture-in-picture):
+     art beside the title, progress, and controls, so they stay on screen. */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .now-playing {
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 4px 20px;
+      align-items: center;
+    }
+
+    .art-frame:not(:fullscreen) {
+      grid-row: span 3;
+      width: 180px;
+      max-width: none;
+    }
+
+    /* YouTube's embed must stay at least 200px tall (§6.7). */
+    .art-frame.video-frame:not(:fullscreen) {
+      width: 356px;
+    }
+
+    .title {
+      display: -webkit-box;
+      overflow: hidden;
+      font-size: 24px;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+  }
+
+  /* Discord's picture-in-picture view is a fixed frame of about 480×270, with
+     nothing else on the page (RoomPage): art as tall as the frame, details trimmed. */
+  @media (max-height: 320px) {
+    :global(html.discord) .now-playing {
+      gap: 4px 16px;
+      align-content: center;
+    }
+
+    :global(html.discord) .art-frame:not(:fullscreen) {
+      width: calc(100dvh - 24px);
+      border-radius: var(--radius);
+    }
+
+    :global(html.discord) .title {
+      font-size: 20px;
+    }
+
+    :global(html.discord) .byline,
+    :global(html.discord) .state {
+      overflow: hidden;
+      font-size: 14px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    :global(html.discord) .source,
+    :global(html.discord) .watch,
+    :global(html.discord) .volume {
+      display: none;
+    }
+
+    :global(html.discord) .play {
+      width: 44px;
+      height: 44px;
+    }
   }
 
   input[type="range"] {

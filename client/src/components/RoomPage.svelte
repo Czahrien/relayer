@@ -281,6 +281,25 @@
     }
   }
 
+  /* Discord's picture-in-picture view (about 480×270, not resizable) has room
+     for the player alone; NowPlaying lays itself out sideways there. */
+  @media (max-height: 320px) {
+    :global(html.discord) {
+      overflow: hidden;
+    }
+
+    /* Header and footer are other components' elements, hence :global. */
+    :global(html.discord) .page > :global(:not(.layout)),
+    :global(html.discord) .right {
+      display: none;
+    }
+
+    :global(html.discord) .layout {
+      align-content: center;
+      padding: 12px;
+    }
+  }
+
   .right {
     display: grid;
     gap: 24px;

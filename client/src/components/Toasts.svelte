@@ -27,6 +27,13 @@
     pointer-events: none;
   }
 
+  /* Discord's picture-in-picture frame is too small to give one room (RoomPage). */
+  @media (max-height: 320px) {
+    :global(html.discord) .toasts {
+      display: none;
+    }
+  }
+
   .toast {
     display: flex;
     align-items: center;

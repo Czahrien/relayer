@@ -20,6 +20,13 @@ services:
       LIBRARY_RESCAN_MIN: ${LIBRARY_RESCAN_MIN:-360}
       # A YouTube Data API key turns on YouTube search and playlist links.
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      # How people can reach you, shown on /privacy and /terms.
+      OPERATOR_CONTACT: ${OPERATOR_CONTACT:-}
+      # The Discord Activity: set all four, or none; see the README.
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_GUILD_IDS: ${DISCORD_GUILD_IDS:-}
     volumes:
       # Uploaded media for live rooms. Rooms don't survive a restart, and the
       # server clears this directory on startup.

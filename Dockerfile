@@ -5,8 +5,11 @@
 # small runtime stage. If a production dependency ever needs a native build,
 # move the deps stage back onto the target platform.
 
+# Node is pinned to a patch release so the image picks up security fixes
+# deliberately: 22.23.4 fixes Node2Shell (CVE-2026-111497), the Brotli RCE.
+
 # ---- Build: compile shared, client, and server ----
-FROM --platform=$BUILDPLATFORM node:22-alpine AS build
+FROM --platform=$BUILDPLATFORM node:22.23.4-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json shared/
@@ -19,7 +22,7 @@ COPY client client
 RUN npm run build
 
 # ---- Production dependencies: the server workspace only ----
-FROM --platform=$BUILDPLATFORM node:22-alpine AS deps
+FROM --platform=$BUILDPLATFORM node:22.23.4-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
@@ -28,7 +31,7 @@ COPY client/package.json client/
 RUN npm ci --omit=dev --workspace server
 
 # ---- Runtime ----
-FROM node:22-alpine
+FROM node:22.23.4-alpine
 
 # OCI labels for local builds; CI overrides them with the version, commit,
 # and build time (.github/workflows/ci.yml).

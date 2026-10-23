@@ -791,7 +791,7 @@ Don't add features beyond this spec without asking first.
 ## 13. Deployment notes
 
 - **Build and run.** `npm run build && npm start` runs everything as a single process.
-- **Docker.** A multi-stage `Dockerfile` on `node:22-alpine`:
+- **Docker.** A multi-stage `Dockerfile` on `node:22.23.4-alpine` (pinned; 22.23.4 fixes CVE-2026-111497):
   - The final image holds the compiled app plus only the server's production dependencies, copying the whole install tree, because npm nests some packages under a workspace.
   - It runs as the non-root `node` user, with a healthcheck on `/` and a `/data` volume for uploads.
   - `compose.yaml` builds the image locally as `relayer:local`. After release, it will pull a published image from GHCR instead.
